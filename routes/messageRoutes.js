@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 // Assuming your message model is correctly defined and imported here:
-const Message = require('../models/message'); 
+const Message = require('../models/Message'); 
 
 // Middleware to protect routes (assuming you have one, like authMiddleware)
 // const { protect } = require('../middleware/authMiddleware'); 
