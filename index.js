@@ -29,6 +29,16 @@ app.use(express.json());
 app.use(cors({ origin: "*" }));
 
 // =========================
+// ROUTES
+// =========================
+app.use("/api/auth", require("./routes/auth"));
+app.use("/api/connections", require("./routes/connectionsRoutes"));
+app.use("/api/messages", require("./routes/messageRoutes"));
+app.use("/api/search", require("./routes/searchRoutes"));
+app.use("/api/upload", require("./routes/upload"));
+
+
+// =========================
 // UPLOADS FOLDER
 // =========================
 const uploadsDir = path.join(__dirname, "uploads");
@@ -48,41 +58,35 @@ mongoose
 // =========================
 // MODELS
 // =========================
+// =========================
+// MODELS
+// =========================
+
 const User = require("./models/User");
 const Message = require("./models/Message");
+const Connection = require("./models/Connection");
 
-const Connection = mongoose.model(
-  "Connection",
-  new mongoose.Schema(
-    {
-      sender: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-      receiver: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-      roomId: String,
-      status: {
-        type: String,
-        enum: ["pending", "accepted"],
-        default: "pending",
-      },
-    },
-    { timestamps: true }
-  )
-);
 
 // =========================
 // FILE UPLOAD (MULTER)
 // =========================
 // =========================
-// FILE UPLOAD (ANY FILE)
+// MULTER CONFIG
 // =========================
 const storage = multer.diskStorage({
-  destination: "uploads/",
-  filename: (_, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname);
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
   },
 });
 
 const upload = multer({ storage });
 
+// =========================
+// FILE UPLOAD (ANY FILE)
+// =========================
 
 // =========================
 // AUTH

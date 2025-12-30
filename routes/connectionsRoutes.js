@@ -115,3 +115,4 @@ router.get("/pending/:userId", async (req, res) => {
     res.status(500).json([]);
   }
 });
+module.exports = router;
