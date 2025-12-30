@@ -63,7 +63,7 @@ mongoose
 // =========================
 
 const User = require("./models/User");
-const Message = require("./models/message");
+const Message = require("./models/Message");
 const Connection = require("./models/Connection");
 
 
