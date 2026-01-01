@@ -1,6 +1,8 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
+const nodemailer = require("nodemailer");
+
 
 const router = express.Router();
 
