@@ -53,10 +53,10 @@ app.get("/api/search-users", async (req, res) => {
     const users = await User.find({
       _id: { $ne: userId },
       $or: [
-        { name: { $regex: query, $options: "i" } },
+        { username: { $regex: query, $options: "i" } },
         { email: { $regex: query, $options: "i" } },
       ],
-    }).select("name email profileImage");
+    }).select("username email profileImage");
     res.json(users);
   } catch (err) {
     res.status(500).json({ message: "Search failed" });
@@ -125,7 +125,7 @@ app.get("/api/pending-requests/:userId", async (req, res) => {
   const requests = await Connection.find({
     receiver: req.params.userId,
     status: "pending",
-  }).populate("sender", "name email profileImage");
+  }).populate("sender", "username email profileImage");
 
   res.json(requests);
 });
@@ -153,8 +153,8 @@ app.get("/api/connections/:userId", async (req, res) => {
       { receiver: req.params.userId },
     ],
   })
-    .populate("sender", "name email profileImage")
-    .populate("receiver", "name email profileImage");
+    .populate("sender", "username email profileImage")
+    .populate("receiver", "username email profileImage");
 
   const formatted = connections.map((conn) => {
     const isSender = conn.sender._id.toString() === req.params.userId;
