@@ -45,13 +45,13 @@ app.use("/api/search", require("./routes/searchRoutes"));
 app.use("/api/upload", require("./routes/upload"));
 
 // =========================
-// NEW: SEARCH USERS (Fixed for search query)
+// NEW: SEARCH USERS
 // =========================
 app.get("/api/search-users", async (req, res) => {
   const { query, userId } = req.query;
   try {
     const users = await User.find({
-      _id: { $ne: userId }, // Don't show the current user
+      _id: { $ne: userId },
       $or: [
         { name: { $regex: query, $options: "i" } },
         { email: { $regex: query, $options: "i" } },
@@ -73,16 +73,15 @@ if (!fs.existsSync(uploadsDir)) {
 app.use("/uploads", express.static(uploadsDir));
 
 // =========================
-// DATABASE
+// DATABASE  ✅ FIXED HERE
 // =========================
 mongoose
-  .connect(process.env.MONGO_URL, {
+  .connect(process.env.MONGO_URI, {   // ✅ FIX
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB Error", err));
-
 
 // =========================
 // MULTER CONFIG
@@ -98,11 +97,10 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // =========================
-// CONNECTION REQUEST (Fixed Variable Names)
+// CONNECTION REQUEST
 // =========================
 app.post("/api/send-request", async (req, res) => {
-  // Destructure names used in AuthContext (fromUserId, toUserId)
-  const { fromUserId, toUserId } = req.body; 
+  const { fromUserId, toUserId } = req.body;
 
   const exists = await Connection.findOne({
     $or: [
@@ -118,7 +116,7 @@ app.post("/api/send-request", async (req, res) => {
     sender: fromUserId,
     receiver: toUserId,
     roomId: uuidv4(),
-    status: "pending"
+    status: "pending",
   });
 
   res.json(conn);
@@ -131,7 +129,7 @@ app.get("/api/pending-requests/:userId", async (req, res) => {
   const requests = await Connection.find({
     receiver: req.params.userId,
     status: "pending",
-  }).populate("sender", "name email profileImage"); // Changed username to name
+  }).populate("sender", "name email profileImage");
 
   res.json(requests);
 });
@@ -174,6 +172,9 @@ app.get("/api/connections/:userId", async (req, res) => {
   res.json(formatted);
 });
 
+// =========================
+// MESSAGES
+// =========================
 app.get("/api/messages/:roomId", async (req, res) => {
   const msgs = await Message.find({ roomId: req.params.roomId })
     .sort({ createdAt: 1 });
@@ -216,7 +217,7 @@ io.on("connection", (socket) => {
     io.to(to).emit("incoming-call", {
       from: socket.id,
       offer,
-      type, 
+      type,
     });
   });
 
