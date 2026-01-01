@@ -76,9 +76,13 @@ app.use("/uploads", express.static(uploadsDir));
 // DATABASE
 // =========================
 mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB Connected"))
+  .connect(process.env.MONGO_URL, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB Error", err));
+
 
 // =========================
 // MULTER CONFIG
