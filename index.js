@@ -7,7 +7,6 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
-const bcrypt = require("bcrypt");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
@@ -29,26 +28,53 @@ app.use(express.json());
 app.use(cors({ origin: "*" }));
 
 // =========================
-// MODELS (Moved up for use in routes)
+// MODELS
 // =========================
 const User = require("./models/User");
 const Message = require("./models/Message");
 const Connection = require("./models/Connection");
 
 // =========================
-// ROUTES
+// AUTH / OTHER ROUTES
 // =========================
 app.use("/api/auth", require("./routes/auth"));
-app.use("/api/connections", require("./routes/connectionsRoutes"));
-app.use("/api/messages", require("./routes/messageRoutes"));
-app.use("/api/search", require("./routes/searchRoutes"));
-app.use("/api/upload", require("./routes/upload"));
 
 // =========================
-// NEW: SEARCH USERS
+// UPLOADS FOLDER
+// =========================
+const uploadsDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
+app.use("/uploads", express.static(uploadsDir));
+
+// =========================
+// MULTER CONFIG (20MB LIMIT)
+// =========================
+const storage = multer.diskStorage({
+  destination: (_, __, cb) => cb(null, uploadsDir),
+  filename: (_, file, cb) =>
+    cb(null, `${Date.now()}-${file.originalname}`),
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+});
+
+// =========================
+// DATABASE
+// =========================
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((err) => console.error("❌ MongoDB error:", err));
+
+// =========================
+// SEARCH USERS
 // =========================
 app.get("/api/search-users", async (req, res) => {
   const { query, userId } = req.query;
+  if (!query) return res.json([]);
+
   try {
     const users = await User.find({
       _id: { $ne: userId },
@@ -57,43 +83,15 @@ app.get("/api/search-users", async (req, res) => {
         { email: { $regex: query, $options: "i" } },
       ],
     }).select("username email profileImage");
+
     res.json(users);
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Search failed" });
   }
 });
 
 // =========================
-// UPLOADS FOLDER
-// =========================
-const uploadsDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
-}
-app.use("/uploads", express.static(uploadsDir));
-
-// =========================
-// DATABASE  ✅ FIXED HERE
-// =========================
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB Error", err));
-// =========================
-// MULTER CONFIG
-// =========================
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
-  },
-});
-const upload = multer({ storage });
-
-// =========================
-// CONNECTION REQUEST
+// SEND CONNECTION REQUEST
 // =========================
 app.post("/api/send-request", async (req, res) => {
   const { fromUserId, toUserId } = req.body;
@@ -106,7 +104,9 @@ app.post("/api/send-request", async (req, res) => {
   });
 
   if (exists)
-    return res.status(400).json({ message: "Already connected or request pending" });
+    return res
+      .status(400)
+      .json({ message: "Already connected or request pending" });
 
   const conn = await Connection.create({
     sender: fromUserId,
@@ -131,19 +131,25 @@ app.get("/api/pending-requests/:userId", async (req, res) => {
 });
 
 // =========================
-// ACCEPT REQUEST
+// ACCEPT REQUEST (SECURE)
 // =========================
-app.put("/api/connections/:id", async (req, res) => {
-  const updated = await Connection.findByIdAndUpdate(
-    req.params.id,
+app.put("/api/connections/:id/accept", async (req, res) => {
+  const { userId } = req.body;
+
+  const updated = await Connection.findOneAndUpdate(
+    { _id: req.params.id, receiver: userId },
     { status: "accepted" },
     { new: true }
   );
+
+  if (!updated)
+    return res.status(403).json({ message: "Not authorized" });
+
   res.json(updated);
 });
 
 // =========================
-// CHAT CONNECTIONS
+// CHAT LIST / HOME
 // =========================
 app.get("/api/connections/:userId", async (req, res) => {
   const connections = await Connection.find({
@@ -169,28 +175,50 @@ app.get("/api/connections/:userId", async (req, res) => {
 });
 
 // =========================
-// MESSAGES
+// GET MESSAGES BY ROOM
 // =========================
 app.get("/api/messages/:roomId", async (req, res) => {
-  const msgs = await Message.find({ roomId: req.params.roomId })
-    .sort({ createdAt: 1 });
+  const msgs = await Message.find({ roomId: req.params.roomId }).sort({
+    createdAt: 1,
+  });
   res.json(msgs);
 });
 
 // =========================
-// FILE UPLOAD MESSAGE
+// FILE UPLOAD (IMAGE / VIDEO / AUDIO / PDF / DOCS)
 // =========================
 app.post("/api/upload", upload.single("file"), (req, res) => {
+  if (!req.file)
+    return res.status(400).json({ message: "No file uploaded" });
+
   const mime = req.file.mimetype;
   let type = "document";
-  if (mime.startsWith("image")) type = "image";
-  else if (mime.startsWith("video")) type = "video";
-  else if (mime.startsWith("audio")) type = "audio";
+
+  if (mime.startsWith("image/")) type = "image";
+  else if (mime.startsWith("video/")) type = "video";
+  else if (mime.startsWith("audio/")) type = "audio";
+  else if (mime === "application/pdf") type = "pdf";
+  else if (
+    [
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-powerpoint",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "text/plain",
+    ].includes(mime)
+  ) {
+    type = "document";
+  } else {
+    return res.status(400).json({ message: "Unsupported file type" });
+  }
 
   res.json({
     url: `/uploads/${req.file.filename}`,
     type,
     name: req.file.originalname,
+    size: req.file.size,
   });
 });
 
@@ -200,36 +228,11 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
 io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id);
 
-  socket.on("joinRoom", ({ roomId }) => {
-    socket.join(roomId);
-  });
+  socket.on("joinRoom", ({ roomId }) => socket.join(roomId));
 
   socket.on("sendMessage", async (data) => {
     const msg = await Message.create(data);
     io.to(data.roomId).emit("receiveMessage", msg);
-  });
-
-  socket.on("call-user", ({ to, offer, type }) => {
-    io.to(to).emit("incoming-call", {
-      from: socket.id,
-      offer,
-      type,
-    });
-  });
-
-  socket.on("answer-call", ({ to, answer }) => {
-    io.to(to).emit("call-accepted", {
-      from: socket.id,
-      answer,
-    });
-  });
-
-  socket.on("ice-candidate", ({ to, candidate }) => {
-    io.to(to).emit("ice-candidate", candidate);
-  });
-
-  socket.on("end-call", ({ to }) => {
-    io.to(to).emit("call-ended");
   });
 
   socket.on("disconnect", () => {
@@ -241,6 +244,6 @@ io.on("connection", (socket) => {
 // START SERVER
 // =========================
 const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => {
-  console.log(`🚀 Backend running on port ${PORT}`);
-});
+server.listen(PORT, () =>
+  console.log(`🚀 Backend running on port ${PORT}`)
+);
