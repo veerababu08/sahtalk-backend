@@ -38,6 +38,8 @@ const Connection = require("./models/Connection");
 // AUTH / OTHER ROUTES
 // =========================
 app.use("/api/auth", require("./routes/auth"));
+app.use("/api/posts", require("./routes/postRoutes"));
+
 
 // =========================
 // UPLOADS FOLDER
