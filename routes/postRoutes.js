@@ -1,7 +1,36 @@
-const mongoose = require("mongoose");
 const express = require("express");
 const router = express.Router();
 const Post = require("../models/Post");
+
+/* ===== ADD POST ===== */
+router.post("/add", async (req, res) => {
+  try {
+    const { user, image, caption } = req.body;
+
+    const post = new Post({
+      user,
+      image,
+      caption,
+    });
+
+    await post.save();
+    res.json({ success: true, post });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to add post" });
+  }
+});
+
+/* ===== GET POSTS BY USER ===== */
+router.get("/:userId", async (req, res) => {
+  try {
+    const posts = await Post.find({ user: req.params.userId })
+      .sort({ createdAt: -1 });
+
+    res.json(posts);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch posts" });
+  }
+});
 
 /* ===== DELETE POST ===== */
 router.delete("/:postId/:userId", async (req, res) => {
@@ -20,31 +49,9 @@ router.delete("/:postId/:userId", async (req, res) => {
 
     await post.deleteOne();
     res.json({ message: "Post deleted successfully" });
-
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
 module.exports = router;
-
-const PostSchema = new mongoose.Schema(
-  {
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    image: {
-      type: String,
-      required: true,
-    },
-    caption: {
-      type: String,
-      default: "",
-    },
-  },
-  { timestamps: true }
-);
-
-module.exports = mongoose.model("Post", PostSchema);
