@@ -121,25 +121,28 @@ router.post("/send-otp", async (req, res) => {
 });
 
 /* ================= VERIFY OTP ================= */
-router.post("/verify-otp", async (req, res) => {
+router.post('/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
 
-  const user = await User.findOne({ email: email.toLowerCase() });
+  const user = await User.findOne({ email });
 
-  if (!user || !user.otp) {
-    return res.status(400).json({ message: "OTP not found" });
+  if (
+    !user ||
+    user.otp !== otp ||
+    user.otpExpiry < Date.now()
+  ) {
+    return res.status(400).json({
+      message: 'Invalid or expired OTP',
+    });
   }
 
-  if (user.otp !== otp) {
-    return res.status(400).json({ message: "Invalid OTP" });
-  }
+  user.otp = null;
+  user.otpExpiry = null;
+  await user.save();
 
-  if (user.otpExpiry < Date.now()) {
-    return res.status(400).json({ message: "OTP expired" });
-  }
-
-  res.json({ success: true, message: "OTP verified" });
+  res.json({ success: true });
 });
+
 
 
 /* ================= RESET PASSWORD ================= */
@@ -162,7 +165,7 @@ router.post("/reset-password", async (req, res) => {
 });
 
 /* ================= UPDATE PROFILE ================= */
-router.put("/update-profile", async (req, res) => {
+router.put('/update-profile', async (req, res) => {
   try {
     const { userId, username, profileImage } = req.body;
 
@@ -182,10 +185,10 @@ router.put("/update-profile", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Profile update failed" });
+    res.status(500).json({ message: 'Update failed' });
   }
 });
+
 
 
 module.exports = router;
