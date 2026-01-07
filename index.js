@@ -11,6 +11,8 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
+const { sendPushNotification } = require("./utils/push");
+
 
 // =========================
 // APP INIT
@@ -39,6 +41,8 @@ const Connection = require("./models/Connection");
 // =========================
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/posts", require("./routes/postRoutes"));
+app.use("/api/connections", require("./routes/connectionsRoutes"));
+
 
 
 // =========================
@@ -230,17 +234,22 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
 io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id);
 
-  socket.on("joinRoom", ({ roomId }) => socket.join(roomId));
-
   socket.on("sendMessage", async (data) => {
-    const msg = await Message.create(data);
-    io.to(data.roomId).emit("receiveMessage", msg);
-  });
+  const msg = await Message.create(data);
 
-  socket.on("disconnect", () => {
-    console.log("🔴 Socket disconnected:", socket.id);
-  });
+  io.to(data.roomId).emit("receiveMessage", msg);
+
+  const receiver = await User.findById(data.receiverId);
+  if (receiver?.pushToken) {
+    sendPushNotification(
+      receiver.pushToken,
+      "New message",
+      data.text || "New message received",
+      { roomId: data.roomId }
+    );
+  }
 });
+
 
 // =========================
 // START SERVER

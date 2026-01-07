@@ -1,118 +1,82 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { Connection } = require('../models/Connection');
-const User = require('../models/User');
+const Connection = require("../models/Connection");
+const { v4: uuidv4 } = require("uuid");
 
-// ------------------------------
-// 1️⃣ SEND FOLLOW REQUEST
-// ------------------------------
-// SEND FOLLOW / CONNECTION REQUEST
-router.post('/request', async (req, res) => {
-  try {
-    const { senderId, receiverId } = req.body;
+/* ================= SEND REQUEST ================= */
+router.post("/send", async (req, res) => {
+  const { fromUserId, toUserId } = req.body;
 
-    if (!senderId || !receiverId) {
-      return res.status(400).json({ message: "Missing IDs" });
-    }
+  const exists = await Connection.findOne({
+    $or: [
+      { sender: fromUserId, receiver: toUserId },
+      { sender: toUserId, receiver: fromUserId },
+    ],
+  });
 
-    if (senderId === receiverId) {
-      return res.status(400).json({ message: "Cannot connect to yourself" });
-    }
-
-    const exists = await Connection.findOne({
-      $or: [
-        { sender: senderId, receiver: receiverId },
-        { sender: receiverId, receiver: senderId }
-      ]
-    });
-
-    if (exists) {
-      return res.status(400).json({ message: "Already connected or pending" });
-    }
-
-    const roomId = `${senderId}_${receiverId}`;
-
-    const connection = new Connection({
-      sender: senderId,
-      receiver: receiverId,
-      roomId,
-      status: "pending"
-    });
-
-    await connection.save();
-
-    res.json({ message: "Request sent successfully" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+  if (exists) {
+    return res.status(400).json({ message: "Request already exists" });
   }
+
+  const conn = await Connection.create({
+    sender: fromUserId,
+    receiver: toUserId,
+    roomId: uuidv4(),
+    status: "pending",
+  });
+
+  res.json(conn);
 });
 
-
-
-// ------------------------------
-// 2️⃣ ACCEPT REQUEST
-// ------------------------------
-router.post("/accept", async (req, res) => {
-  const { requestId } = req.body;
-
-  const connection = await Connection.findById(requestId);
-  if (!connection) return res.status(404).json({ msg: "Not found" });
-
-  connection.status = "accepted";
-  await connection.save();
-
-  res.json({ success: true });
-});
-
-
-// ------------------------------
-// 3️⃣ GET ALL ACCEPTED FRIENDS (CHAT LIST)
-// ------------------------------
-router.get('/:userId', async (req, res) => {
-    try {
-        const { userId } = req.params;
-
-        const connections = await Connection.find({
-            status: "accepted",
-            $or: [{ sender: userId }, { receiver: userId }]
-        }).populate('sender receiver');
-
-        const formatted = connections.map(conn => ({
-            roomId: conn.roomId,
-            otherUserId:
-                conn.sender._id.toString() === userId
-                    ? conn.receiver._id
-                    : conn.sender._id,
-            otherUsername:
-                conn.sender._id.toString() === userId
-                    ? conn.receiver.username
-                    : conn.sender.username,
-            lastMessage: "Tap to chat"
-        }));
-
-        res.json(formatted);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-
-// ------------------------------
-// ------------------------------
-// 2️⃣ GET PENDING REQUESTS
-// ------------------------------
-// GET PENDING REQUESTS
+/* ================= PENDING REQUESTS ================= */
 router.get("/pending/:userId", async (req, res) => {
-  try {
-    const requests = await Connection.find({
-      receiver: req.params.userId,
-      status: "pending",
-    }).populate("sender", "username email");
+  const requests = await Connection.find({
+    receiver: req.params.userId,
+    status: "pending",
+  }).populate("sender", "username email profileImage");
 
-    res.json(requests);
-  } catch (err) {
-    res.status(500).json([]);
-  }
+  res.json(requests);
 });
+
+/* ================= ACCEPT / REJECT ================= */
+router.put("/:id", async (req, res) => {
+  const { status } = req.body; // accepted / rejected
+
+  const updated = await Connection.findByIdAndUpdate(
+    req.params.id,
+    { status },
+    { new: true }
+  );
+
+  res.json(updated);
+});
+
+/* ================= CHAT LIST ================= */
+router.get("/chatlist/:userId", async (req, res) => {
+  const connections = await Connection.find({
+    status: "accepted",
+    $or: [
+      { sender: req.params.userId },
+      { receiver: req.params.userId },
+    ],
+  })
+    .populate("sender", "username email profileImage")
+    .populate("receiver", "username email profileImage");
+
+  const formatted = connections.map((c) => {
+    const other =
+      c.sender._id.toString() === req.params.userId
+        ? c.receiver
+        : c.sender;
+
+    return {
+      connectionId: c._id,
+      roomId: c.roomId,
+      user: other,
+    };
+  });
+
+  res.json(formatted);
+});
+
 module.exports = router;
