@@ -235,21 +235,21 @@ io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id);
 
   socket.on("sendMessage", async (data) => {
-  const msg = await Message.create(data);
+    const msg = await Message.create(data);
 
-  io.to(data.roomId).emit("receiveMessage", msg);
+    io.to(data.roomId).emit("receiveMessage", msg);
 
-  const receiver = await User.findById(data.receiverId);
-  if (receiver?.pushToken) {
-    sendPushNotification(
-      receiver.pushToken,
-      "New message",
-      data.text || "New message received",
-      { roomId: data.roomId }
-    );
-  }
-});
-
+    const receiver = await User.findById(data.receiverId);
+    if (receiver?.pushToken) {
+      sendPushNotification(
+        receiver.pushToken,
+        "New message",
+        data.text || "New message received",
+        { roomId: data.roomId }
+      );
+    }
+  });
+}); // <-- CLOSES io.on("connection")
 
 // =========================
 // START SERVER
