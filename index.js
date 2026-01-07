@@ -11,7 +11,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
-const { sendPushNotification } = require("./utils/push");
+const { sendPushNotification } = require("./utils/sendPush");
 
 
 // =========================
