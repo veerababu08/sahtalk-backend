@@ -68,8 +68,7 @@ await sendPushNotification(
 /* ================= GET PENDING REQUESTS ================= */
 router.get("/pending/:userId", async (req, res) => {
   try {
-    // convert string param to ObjectId
-    const userId = mongoose.Types.ObjectId(req.params.userId);
+    const userId = new mongoose.Types.ObjectId(req.params.userId);
 
     const requests = await Connection.find({
       receiver: userId,
@@ -81,7 +80,29 @@ router.get("/pending/:userId", async (req, res) => {
     console.error("PENDING REQUESTS ERROR:", err);
     res.status(500).json({ success: false });
   }
-});/* ================= ACCEPT REQUEST ================= */
+});
+
+/* ================= CHECK REQUEST STATUS ================= */
+router.get("/status/:fromId/:toId", async (req, res) => {
+  const { fromId, toId } = req.params;
+
+  const connection = await Connection.findOne({
+    $or: [
+      { sender: fromId, receiver: toId },
+      { sender: toId, receiver: fromId },
+    ],
+  });
+
+  if (!connection) {
+    return res.json({ exists: false });
+  }
+
+  res.json({
+    exists: true,
+    status: connection.status,
+  });
+});
+/* ================= ACCEPT REQUEST ================= */
 router.post("/accept", async (req, res) => {
   try {
     const { senderId, receiverId } = req.body;
