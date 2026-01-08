@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { v4: uuidv4 } = require("uuid");
-
+const mongoose = require("mongoose"); // add at top
 const Connection = require("../models/Connection");
 const User = require("../models/User");
 const { sendPushNotification } = require("../utils/sendPush");
@@ -68,8 +68,11 @@ await sendPushNotification(
 /* ================= GET PENDING REQUESTS ================= */
 router.get("/pending/:userId", async (req, res) => {
   try {
+    // convert string param to ObjectId
+    const userId = mongoose.Types.ObjectId(req.params.userId);
+
     const requests = await Connection.find({
-      receiver: req.params.userId,
+      receiver: userId,
       status: "pending",
     }).populate("sender", "username email profileImage");
 
@@ -78,9 +81,7 @@ router.get("/pending/:userId", async (req, res) => {
     console.error("PENDING REQUESTS ERROR:", err);
     res.status(500).json({ success: false });
   }
-});
-
-/* ================= ACCEPT REQUEST ================= */
+});/* ================= ACCEPT REQUEST ================= */
 router.post("/accept", async (req, res) => {
   try {
     const { senderId, receiverId } = req.body;
