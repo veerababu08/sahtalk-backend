@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require("uuid");
 
 const Connection = require("../models/Connection");
 const User = require("../models/User");
-const sendPush = require("../utils/sendPush");
+const { sendPushNotification } = require("../utils/sendPush");
 
 /* ================= SEND CONNECTION REQUEST ================= */
 router.post("/send-request", async (req, res) => {
@@ -43,7 +43,7 @@ router.post("/send-request", async (req, res) => {
     const receiver = await User.findById(toUserId);
 
     if (receiver?.pushToken && sender) {
-      await sendPush(
+await sendPushNotification(
         receiver.pushToken,
         "New Connection Request",
         `${sender.username} sent you a connection request`,
