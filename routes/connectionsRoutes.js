@@ -106,7 +106,7 @@ router.post("/accept", async (req, res) => {
     const receiver = await User.findById(receiverId);
 
     if (sender?.pushToken && receiver) {
-      await sendPush(
+await sendPushNotification(
         sender.pushToken,
         "Request Accepted 🎉",
         `${receiver.username} accepted your request`,
