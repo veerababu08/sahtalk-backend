@@ -29,7 +29,7 @@ const UserSchema = new mongoose.Schema(
     // Expo / FCM push token
     pushToken: {
       type: String,
-      default: "",
+      default: null,
     },
   },
   {

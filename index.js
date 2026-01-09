@@ -234,22 +234,63 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
 io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id);
 
+  // ✅ JOIN ROOM
+  socket.on("joinRoom", ({ roomId }) => {
+    socket.join(roomId);
+    console.log(`📥 Joined room: ${roomId}`);
+  });
+
+  // ✅ SEND MESSAGE
   socket.on("sendMessage", async (data) => {
-    const msg = await Message.create(data);
+    try {
+      // 1️⃣ Save message
+      const msg = await Message.create(data);
 
-    io.to(data.roomId).emit("receiveMessage", msg);
+      // 2️⃣ Emit to room
+      io.to(data.roomId).emit("receiveMessage", msg);
 
-    const receiver = await User.findById(data.receiverId);
-    if (receiver?.pushToken) {
-      sendPushNotification(
-        receiver.pushToken,
-        "New message",
-        data.text || "New message received",
-        { roomId: data.roomId }
-      );
+      // 3️⃣ Find connection by roomId
+      const connection = await Connection.findOne({
+        roomId: data.roomId,
+      });
+
+      if (!connection) return;
+
+      // 4️⃣ Determine receiver
+      const receiverId =
+        connection.sender.toString() === data.sender
+          ? connection.receiver
+          : connection.sender;
+
+      // ❌ Do NOT notify sender
+      if (receiverId.toString() === data.sender) return;
+
+      // 5️⃣ Fetch receiver
+      const receiver = await User.findById(receiverId);
+
+      // 6️⃣ Send push notification
+      if (receiver?.pushToken) {
+        await sendPushNotification(
+          receiver.pushToken,
+          "💬 New Message",
+          data.text || "You received a message",
+          {
+            type: "chat",
+            roomId: data.roomId,
+            senderId: data.sender,
+          }
+        );
+      }
+    } catch (err) {
+      console.log("❌ sendMessage socket error:", err);
     }
   });
-}); // <-- CLOSES io.on("connection")
+
+  socket.on("disconnect", () => {
+    console.log("🔴 Socket disconnected:", socket.id);
+  });
+});
+
 
 // =========================
 // START SERVER
