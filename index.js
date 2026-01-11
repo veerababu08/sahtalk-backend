@@ -231,6 +231,9 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
 // =========================
 // SOCKET.IO
 // =========================
+// =========================
+// SOCKET.IO
+// =========================
 io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id);
 
@@ -241,34 +244,39 @@ io.on("connection", (socket) => {
   });
 
   // ✅ SEND MESSAGE
-  socket.on("sendMessage", async (data) => {
-    try {
-      // 1️⃣ Save message
-      const msg = await Message.create(data);
+socket.on("sendMessage", async (data) => {
+  try {
+    // 1️⃣ Find connection
+    const connection = await Connection.findOne({
+      roomId: data.roomId,
+    });
 
-      // 2️⃣ Emit to room
-      io.to(data.roomId).emit("receiveMessage", msg);
+    if (!connection) return;
 
-      // 3️⃣ Find connection by roomId
-      const connection = await Connection.findOne({
-        roomId: data.roomId,
-      });
+    // 2️⃣ Identify receiver
+    const receiverId =
+      connection.sender.toString() === data.sender
+        ? connection.receiver
+        : connection.sender;
 
-      if (!connection) return;
+    // 3️⃣ Save message CORRECTLY
+    const msg = await Message.create({
+      roomId: data.roomId,
+      sender: data.sender,
+      receiver: receiverId,
+      content: data.text || "",
+      messageType: data.type || "text",
+      mediaUrl: data.mediaUrl || "",
+      fileMeta: data.fileMeta || null,
+    });
 
-      // 4️⃣ Determine receiver
-      const receiverId =
-        connection.sender.toString() === data.sender
-          ? connection.receiver
-          : connection.sender;
+    // 4️⃣ Emit message to room
+    io.to(data.roomId).emit("receiveMessage", msg);
 
-      // ❌ Do NOT notify sender
-      if (receiverId.toString() === data.sender) return;
-
-      // 5️⃣ Fetch receiver
+    // 5️⃣ Push notification
+    if (receiverId.toString() !== data.sender) {
       const receiver = await User.findById(receiverId);
 
-      // 6️⃣ Send push notification
       if (receiver?.pushToken) {
         await sendPushNotification(
           receiver.pushToken,
@@ -281,15 +289,18 @@ io.on("connection", (socket) => {
           }
         );
       }
-    } catch (err) {
-      console.log("❌ sendMessage socket error:", err);
     }
-  });
+  } catch (err) {
+    console.log("❌ sendMessage socket error:", err);
+  }
+});
+
 
   socket.on("disconnect", () => {
     console.log("🔴 Socket disconnected:", socket.id);
   });
 });
+
 
 
 // =========================

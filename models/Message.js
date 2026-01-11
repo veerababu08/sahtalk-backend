@@ -2,6 +2,13 @@ const mongoose = require("mongoose");
 
 const messageSchema = new mongoose.Schema(
   {
+    // ✅ ROOM (ADDED – REQUIRED FOR CHAT HISTORY)
+    roomId: {
+      type: String,
+      required: true,
+      index: true,
+    },
+
     sender: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -24,14 +31,7 @@ const messageSchema = new mongoose.Schema(
     // Message type
     messageType: {
       type: String,
-      enum: [
-        "text",
-        "image",
-        "video",
-        "audio",
-        "pdf",
-        "document",
-      ],
+      enum: ["text", "image", "video", "audio", "pdf", "document"],
       default: "text",
     },
 
@@ -41,7 +41,7 @@ const messageSchema = new mongoose.Schema(
       default: "",
     },
 
-    // File metadata (for pdf & documents)
+    // File metadata
     fileMeta: {
       name: { type: String },
       size: { type: Number },
@@ -58,6 +58,5 @@ const messageSchema = new mongoose.Schema(
   }
 );
 
-// Prevent OverwriteModelError
 module.exports =
   mongoose.models.Message || mongoose.model("Message", messageSchema);
