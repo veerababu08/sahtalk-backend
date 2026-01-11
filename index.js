@@ -288,6 +288,7 @@ if (
 ) {
 
     }
+}
   } catch (err) {
     console.log("❌ sendMessage socket error:", err);
   }
