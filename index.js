@@ -240,69 +240,74 @@ io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id);
 
   // ✅ JOIN ROOM
-socket.on("joinRoom", ({ roomId, userId }) => {
-  socket.join(roomId);
-  activeUsersInRoom.set(userId.toString(), roomId);
-});
-
+  socket.on("joinRoom", ({ roomId, userId }) => {
+    socket.join(roomId);
+    activeUsersInRoom.set(userId.toString(), roomId);
+  });
 
   // ✅ SEND MESSAGE
-socket.on("sendMessage", async (data) => {
-  try {
-    // 1️⃣ Find connection
-    const connection = await Connection.findOne({
-      roomId: data.roomId,
-    });
+  socket.on("sendMessage", async (data) => {
+    try {
+      // 1️⃣ Find connection
+      const connection = await Connection.findOne({
+        roomId: data.roomId,
+      });
 
-    if (!connection) return;
+      if (!connection) return;
 
-    // 2️⃣ Identify receiver
-    const receiverId =
-      connection.sender.toString() === data.sender
-        ? connection.receiver
-        : connection.sender;
+      // 2️⃣ Identify receiver
+      const receiverId =
+        connection.sender.toString() === data.sender
+          ? connection.receiver
+          : connection.sender;
 
-    // 3️⃣ Save message CORRECTLY
-    const msg = await Message.create({
-      roomId: data.roomId,
-      sender: data.sender,
-      receiver: receiverId,
-      content: data.text || "",
-      messageType: data.type || "text",
-      mediaUrl: data.mediaUrl || "",
-      fileMeta: data.fileMeta || null,
-    });
+      // 3️⃣ Save message (NO CHANGE)
+      const msg = await Message.create({
+        roomId: data.roomId,
+        sender: data.sender,
+        receiver: receiverId,
+        content: data.text || "",
+        messageType: data.type || "text",
+        mediaUrl: data.mediaUrl || "",
+        fileMeta: data.fileMeta || null,
+      });
 
-    // 4️⃣ Emit message to room
-    io.to(data.roomId).emit("receiveMessage", msg);
+      // 4️⃣ Emit message to room
+      io.to(data.roomId).emit("receiveMessage", msg);
 
-    // 5️⃣ Push notification
-    if (receiverId.toString() !== data.sender) {
-      const receiver = await User.findById(receiverId);
+      // 5️⃣ Push notification (FILLED, NOT REMOVED)
+      if (receiverId.toString() !== data.sender) {
+        const receiver = await User.findById(receiverId);
 
-     const receiverActiveRoom = activeUsersInRoom.get(receiverId.toString());
+        const receiverActiveRoom = activeUsersInRoom.get(
+          receiverId.toString()
+        );
 
-if (
-  receiver?.pushToken &&
-  receiverActiveRoom !== data.roomId
-) {
-
+        if (
+          receiver?.pushToken &&
+          receiverActiveRoom !== data.roomId
+        ) {
+          await sendPushNotification(
+            receiver.pushToken,
+            "New Message",
+            data.text || "📩 New message received"
+          );
+        }
+      }
+    } catch (err) {
+      console.log("❌ sendMessage socket error:", err);
     }
-}
-  } catch (err) {
-    console.log("❌ sendMessage socket error:", err);
-  }
-});
+  });
 
-
-socket.on("disconnect", () => {
-  for (const [userId, roomId] of activeUsersInRoom.entries()) {
-    if (socket.rooms.has(roomId)) {
-      activeUsersInRoom.delete(userId);
+  // ✅ DISCONNECT
+  socket.on("disconnect", () => {
+    for (const [userId, roomId] of activeUsersInRoom.entries()) {
+      if (socket.rooms.has(roomId)) {
+        activeUsersInRoom.delete(userId);
+      }
     }
-  }
+  });
 });
-
 
 
 // =========================
