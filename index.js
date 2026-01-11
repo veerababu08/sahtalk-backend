@@ -19,6 +19,8 @@ const { sendPushNotification } = require("./utils/sendPush");
 // =========================
 const app = express();
 const server = http.createServer(app);
+const activeUsersInRoom = new Map();
+
 const io = new Server(server, {
   cors: { origin: "*" },
 });
@@ -238,10 +240,11 @@ io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id);
 
   // ✅ JOIN ROOM
-  socket.on("joinRoom", ({ roomId }) => {
-    socket.join(roomId);
-    console.log(`📥 Joined room: ${roomId}`);
-  });
+socket.on("joinRoom", ({ roomId, userId }) => {
+  socket.join(roomId);
+  activeUsersInRoom.set(userId.toString(), roomId);
+});
+
 
   // ✅ SEND MESSAGE
 socket.on("sendMessage", async (data) => {
@@ -277,18 +280,13 @@ socket.on("sendMessage", async (data) => {
     if (receiverId.toString() !== data.sender) {
       const receiver = await User.findById(receiverId);
 
-      if (receiver?.pushToken) {
-        await sendPushNotification(
-          receiver.pushToken,
-          "💬 New Message",
-          data.text || "You received a message",
-          {
-            type: "chat",
-            roomId: data.roomId,
-            senderId: data.sender,
-          }
-        );
-      }
+     const receiverActiveRoom = activeUsersInRoom.get(receiverId.toString());
+
+if (
+  receiver?.pushToken &&
+  receiverActiveRoom !== data.roomId
+) {
+
     }
   } catch (err) {
     console.log("❌ sendMessage socket error:", err);
@@ -296,9 +294,12 @@ socket.on("sendMessage", async (data) => {
 });
 
 
-  socket.on("disconnect", () => {
-    console.log("🔴 Socket disconnected:", socket.id);
-  });
+socket.on("disconnect", () => {
+  for (const [userId, roomId] of activeUsersInRoom.entries()) {
+    if (socket.rooms.has(roomId)) {
+      activeUsersInRoom.delete(userId);
+    }
+  }
 });
 
 
