@@ -299,6 +299,45 @@ io.on("connection", (socket) => {
     }
   });
 
+
+  // =========================
+  // 📞 VOICE / VIDEO CALL SIGNALING
+  // =========================
+
+  socket.on("call-user", ({ to, offer, type }) => {
+    io.to(to).emit("incoming-call", {
+      from: socket.id,
+      offer,
+      type,
+    });
+  });
+
+  socket.on("answer-call", ({ to, answer }) => {
+    io.to(to).emit("call-accepted", {
+      answer,
+    });
+  });
+
+  socket.on("ice-candidate", ({ to, candidate }) => {
+    io.to(to).emit("ice-candidate", {
+      candidate,
+    });
+  });
+
+  socket.on("end-call", ({ to }) => {
+    io.to(to).emit("end-call");
+  });
+
+  // notify room users about socket id (used for calls)
+  socket.on("joinRoom", ({ roomId, userId }) => {
+    socket.join(roomId);
+    activeUsersInRoom.set(userId.toString(), roomId);
+
+    socket.to(roomId).emit("user-joined", {
+      socketId: socket.id,
+    });
+  });
+
   // ✅ DISCONNECT
   socket.on("disconnect", () => {
     for (const [userId, roomId] of activeUsersInRoom.entries()) {
