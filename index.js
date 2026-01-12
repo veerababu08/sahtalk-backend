@@ -270,6 +270,8 @@ io.on("connection", (socket) => {
         messageType: data.type || "text",
         mediaUrl: data.mediaUrl || "",
         fileMeta: data.fileMeta || null,
+  clientTempId: data.clientTempId, // 🔹 ADD
+
       });
 
       // 4️⃣ Emit message to room
@@ -303,35 +305,38 @@ io.on("connection", (socket) => {
   // =========================
   // 📞 VOICE / VIDEO CALL SIGNALING
   // =========================
+// ================= CALL SIGNALING =================
 
-  socket.on("call-user", ({ to, offer, type }) => {
-    io.to(to).emit("incoming-call", {
-      from: socket.id,
-      offer,
-      type,
-    });
+// Call user
+socket.on("call-user", ({ to, offer, type }) => {
+  io.to(to).emit("incoming-call", {
+    from: socket.id,
+    offer,
+    type,
   });
+});
 
-  socket.on("answer-call", ({ to, answer }) => {
-    io.to(to).emit("call-accepted", {
-      answer,
-    });
-  });
+// Answer call
+socket.on("answer-call", ({ to, answer }) => {
+  io.to(to).emit("call-accepted", { answer });
+});
 
-  socket.on("ice-candidate", ({ to, candidate }) => {
-    io.to(to).emit("ice-candidate", {
-      candidate,
-    });
-  });
+// ICE candidate
+socket.on("ice-candidate", ({ to, candidate }) => {
+  io.to(to).emit("ice-candidate", { candidate });
+});
 
-  socket.on("end-call", ({ to }) => {
-    io.to(to).emit("end-call");
-  });
+// End call
+socket.on("end-call", ({ to }) => {
+  io.to(to).emit("end-call");
+});
+;
 
   // notify room users about socket id (used for calls)
   socket.on("joinRoom", ({ roomId, userId }) => {
     socket.join(roomId);
     activeUsersInRoom.set(userId.toString(), roomId);
+onlineUsers.set(userId.toString(), socket.id); // 🔹 ADD
 
     socket.to(roomId).emit("user-joined", {
       socketId: socket.id,
