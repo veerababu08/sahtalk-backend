@@ -78,6 +78,21 @@ router.post("/login", async (req, res) => {
   }
 });
 
+
+router.post("/update-push-token", async (req, res) => {
+  try {
+    const { userId, pushToken } = req.body;
+    if (!userId || !pushToken) {
+      return res.status(400).json({ message: "Missing fields" });
+    }
+
+    await User.findByIdAndUpdate(userId, { pushToken });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update token" });
+  }
+});
+
 /* ================= SEND OTP ================= */
 router.post("/send-otp", async (req, res) => {
   try {

@@ -309,28 +309,25 @@ io.on("connection", (socket) => {
 
 // Call user
 socket.on("call-user", ({ to, offer, type }) => {
-  io.to(to).emit("incoming-call", {
+  socket.to(to).emit("incoming-call", {
     from: socket.id,
     offer,
     type,
   });
 });
 
-// Answer call
 socket.on("answer-call", ({ to, answer }) => {
-  io.to(to).emit("call-accepted", { answer });
+  socket.to(to).emit("call-accepted", { answer });
 });
 
-// ICE candidate
 socket.on("ice-candidate", ({ to, candidate }) => {
-  io.to(to).emit("ice-candidate", { candidate });
+  socket.to(to).emit("ice-candidate", { candidate });
 });
 
-// End call
 socket.on("end-call", ({ to }) => {
-  io.to(to).emit("end-call");
+  socket.to(to).emit("end-call");
 });
-;
+
 
   // notify room users about socket id (used for calls)
   socket.on("joinRoom", ({ roomId, userId }) => {
