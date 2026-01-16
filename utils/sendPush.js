@@ -1,22 +1,29 @@
-const fetch = require("node-fetch");
+const { Expo } = require("expo-server-sdk");
 
-const sendPush = async (expoPushToken, title, body, data = {}) => {
-  if (!expoPushToken) return;
+const expo = new Expo();
 
-  await fetch("https://exp.host/--/api/v2/push/send", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      to: expoPushToken,
+const sendPush = async (pushToken, title, body, data = {}) => {
+  if (!Expo.isExpoPushToken(pushToken)) {
+    console.log("❌ Invalid Expo push token:", pushToken);
+    return;
+  }
+
+  const messages = [
+    {
+      to: pushToken,
       sound: "default",
       title,
       body,
       data,
-	sound: "default",
-    }),
-  });
+    },
+  ];
+
+  try {
+    await expo.sendPushNotificationsAsync(messages);
+    console.log("✅ Push notification sent");
+  } catch (error) {
+    console.error("❌ Push notification error:", error);
+  }
 };
 
 module.exports = sendPush;
