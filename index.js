@@ -19,8 +19,9 @@ const { sendPushNotification } = require("./utils/sendPush");
 // =========================
 const app = express();
 const server = http.createServer(app);
-const activeUsersInRoom = new Map();
-const socketUserMap = new Map(); // socket.id -> userId
+const activeUsersInRoom = new Map(); // userId -> roomId (for messages)
+const socketUserMap = new Map();     // socket.id -> userId
+const onlineUsers = new Map();       // userId -> socket.id (for calls)
 
 
 const io = new Server(server, {
@@ -247,7 +248,7 @@ socket.on("joinRoom", ({ roomId, userId }) => {
 
   socketUserMap.set(socket.id, userId.toString());
   activeUsersInRoom.set(userId.toString(), roomId);
-
+onlineUsers.set(userId.toString(), socket.id); 
   socket.to(roomId).emit("user-joined", {
     socketId: socket.id,
   });
@@ -320,30 +321,52 @@ await Connection.findOneAndUpdate(
   // 📞 VOICE / VIDEO CALL SIGNALING
   // =========================
 // ================= CALL SIGNALING =================
+// =========================
+// 📞 VOICE / VIDEO CALL SIGNALING
+// =========================
+
+// Register user for calls
 socket.on("register-call", ({ userId }) => {
   socketUserMap.set(socket.id, userId.toString());
+  onlineUsers.set(userId.toString(), socket.id); // track socketId for calls
 });
 
 // Call user
 socket.on("call-user", ({ to, offer, type }) => {
-  socket.to(to).emit("incoming-call", {
-    from: socket.id,
-    offer,
-    type,
-  });
+  const receiverSocketId = onlineUsers.get(to); // lookup socketId
+  if (receiverSocketId) {
+    socket.to(receiverSocketId).emit("incoming-call", {
+      from: socket.id,
+      offer,
+      type,
+    });
+  } else {
+    // Receiver offline
+    socket.emit("call-failed", { reason: "User is offline" });
+  }
 });
 
 socket.on("answer-call", ({ to, answer }) => {
-  socket.to(to).emit("call-accepted", { answer });
+  const receiverSocketId = onlineUsers.get(to);
+  if (receiverSocketId) {
+    socket.to(receiverSocketId).emit("call-accepted", { answer });
+  }
 });
 
 socket.on("ice-candidate", ({ to, candidate }) => {
-  socket.to(to).emit("ice-candidate", { candidate });
+  const receiverSocketId = onlineUsers.get(to);
+  if (receiverSocketId) {
+    socket.to(receiverSocketId).emit("ice-candidate", { candidate });
+  }
 });
 
 socket.on("end-call", ({ to }) => {
-  socket.to(to).emit("end-call");
+  const receiverSocketId = onlineUsers.get(to);
+  if (receiverSocketId) {
+    socket.to(receiverSocketId).emit("end-call");
+  }
 });
+
 
 
  
@@ -354,6 +377,7 @@ socket.on("disconnect", () => {
 
   if (userId) {
     activeUsersInRoom.delete(userId.toString());
+	onlineUsers.delete(userId.toString());
     socketUserMap.delete(socket.id);
   }
 
