@@ -20,6 +20,8 @@ const { sendPushNotification } = require("./utils/sendPush");
 const app = express();
 const server = http.createServer(app);
 const activeUsersInRoom = new Map();
+const socketUserMap = new Map(); // socket.id -> userId
+
 
 const io = new Server(server, {
   cors: { origin: "*" },
@@ -240,10 +242,17 @@ io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id);
 
   // ✅ JOIN ROOM
-  socket.on("joinRoom", ({ roomId, userId }) => {
-    socket.join(roomId);
-    activeUsersInRoom.set(userId.toString(), roomId);
+socket.on("joinRoom", ({ roomId, userId }) => {
+  socket.join(roomId);
+
+  socketUserMap.set(socket.id, userId.toString());
+  activeUsersInRoom.set(userId.toString(), roomId);
+
+  socket.to(roomId).emit("user-joined", {
+    socketId: socket.id,
   });
+});
+
 
   // ✅ SEND MESSAGE
   socket.on("sendMessage", async (data) => {
@@ -273,6 +282,11 @@ io.on("connection", (socket) => {
   clientTempId: data.clientTempId, // 🔹 ADD
 
       });
+
+await Connection.findOneAndUpdate(
+  { roomId: data.roomId },
+  { lastMessage: msg._id, updatedAt: new Date() }
+);
 
       // 4️⃣ Emit message to room
       io.to(data.roomId).emit("receiveMessage", msg);
@@ -306,6 +320,9 @@ io.on("connection", (socket) => {
   // 📞 VOICE / VIDEO CALL SIGNALING
   // =========================
 // ================= CALL SIGNALING =================
+socket.on("register-call", ({ userId }) => {
+  socketUserMap.set(socket.id, userId.toString());
+});
 
 // Call user
 socket.on("call-user", ({ to, offer, type }) => {
@@ -329,25 +346,21 @@ socket.on("end-call", ({ to }) => {
 });
 
 
-  // notify room users about socket id (used for calls)
-  socket.on("joinRoom", ({ roomId, userId }) => {
-    socket.join(roomId);
-    activeUsersInRoom.set(userId.toString(), roomId);
-onlineUsers.set(userId.toString(), socket.id); // 🔹 ADD
-
-    socket.to(roomId).emit("user-joined", {
-      socketId: socket.id,
-    });
-  });
+ 
 
   // ✅ DISCONNECT
-  socket.on("disconnect", () => {
-    for (const [userId, roomId] of activeUsersInRoom.entries()) {
-      if (socket.rooms.has(roomId)) {
-        activeUsersInRoom.delete(userId);
-      }
-    }
-  });
+socket.on("disconnect", () => {
+  const userId = socketUserMap.get(socket.id);
+
+  if (userId) {
+    activeUsersInRoom.delete(userId.toString());
+    socketUserMap.delete(socket.id);
+  }
+
+  console.log("🔴 Socket disconnected:", socket.id);
+});
+
+
 });
 
 
