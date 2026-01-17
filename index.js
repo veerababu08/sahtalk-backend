@@ -365,6 +365,13 @@ socket.on("ice-candidate", ({ toUserId, candidate }) => {
 
   socket.to(targetSocket).emit("ice-candidate", { candidate });
 });
+socket.on("reject-call", ({ to }) => {
+  const targetSocket = onlineUsers.get(to.toString());
+  if (targetSocket) {
+    socket.to(targetSocket).emit("call-rejected");
+  }
+});
+
 
 socket.on("end-call", ({ toUserId }) => {
   const targetSocket = onlineUsers.get(toUserId.toString());
