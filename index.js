@@ -248,7 +248,6 @@ socket.on("joinRoom", ({ roomId, userId }) => {
 
   socketUserMap.set(socket.id, userId.toString());
   activeUsersInRoom.set(userId.toString(), roomId);
-onlineUsers.set(userId.toString(), socket.id); 
   socket.to(roomId).emit("user-joined", {
     socketId: socket.id,
   });
@@ -256,65 +255,72 @@ onlineUsers.set(userId.toString(), socket.id);
 
 
   // ✅ SEND MESSAGE
-  socket.on("sendMessage", async (data) => {
-    try {
-      // 1️⃣ Find connection
-      const connection = await Connection.findOne({
-        roomId: data.roomId,
+socket.on("sendMessage", async (data) => {
+  try {
+    // 🛑 Prevent duplicate messages
+    if (data.clientTempId) {
+      const exists = await Message.findOne({
+        clientTempId: data.clientTempId,
       });
+      if (exists) return;
+    }
 
-      if (!connection) return;
+    const connection = await Connection.findOne({
+      roomId: data.roomId,
+    });
+    if (!connection) return;
 
-      // 2️⃣ Identify receiver
-      const receiverId =
-        connection.sender.toString() === data.sender
-          ? connection.receiver
-          : connection.sender;
+    const receiverId =
+      connection.sender.toString() === data.sender
+        ? connection.receiver
+        : connection.sender;
 
-      // 3️⃣ Save message (NO CHANGE)
-      const msg = await Message.create({
-        roomId: data.roomId,
-        sender: data.sender,
-        receiver: receiverId,
-        content: data.text || "",
-        messageType: data.type || "text",
-        mediaUrl: data.mediaUrl || "",
-        fileMeta: data.fileMeta || null,
-  clientTempId: data.clientTempId, // 🔹 ADD
+    const msg = await Message.create({
+      roomId: data.roomId,
+      sender: data.sender,
+      receiver: receiverId,
+      content: data.text || "",
+      messageType: data.type || "text",
+      mediaUrl: data.mediaUrl || "",
+      fileMeta: data.fileMeta || null,
+      clientTempId: data.clientTempId,
+    });
 
-      });
+    await Connection.findOneAndUpdate(
+      { roomId: data.roomId },
+      { lastMessage: msg._id }
+    );
 
-await Connection.findOneAndUpdate(
-  { roomId: data.roomId },
-  { lastMessage: msg._id, updatedAt: new Date() }
-);
+    // ✅ Emit to room
+    socket.to(data.roomId).emit("receiveMessage", msg);
 
-      // 4️⃣ Emit message to room
-      io.to(data.roomId).emit("receiveMessage", msg);
+    // ✅ PUSH NOTIFICATION (INSIDE!)
+    if (receiverId.toString() !== data.sender) {
+      const receiver = await User.findById(receiverId);
+      const receiverActiveRoom = activeUsersInRoom.get(
+        receiverId.toString()
+      );
 
-      // 5️⃣ Push notification (FILLED, NOT REMOVED)
-      if (receiverId.toString() !== data.sender) {
-        const receiver = await User.findById(receiverId);
-
-        const receiverActiveRoom = activeUsersInRoom.get(
-          receiverId.toString()
+      if (
+        receiver?.pushToken &&
+        receiverActiveRoom !== data.roomId
+      ) {
+        const senderUser = await User.findById(data.sender).select(
+          "username"
         );
 
-        if (
-          receiver?.pushToken &&
-          receiverActiveRoom !== data.roomId
-        ) {
-          await sendPushNotification(
-            receiver.pushToken,
-            "New Message",
-            data.text || "📩 New message received"
-          );
-        }
+        await sendPushNotification(
+          receiver.pushToken,
+          senderUser.username,
+          data.text || "📩 New message received"
+        );
       }
-    } catch (err) {
-      console.log("❌ sendMessage socket error:", err);
     }
-  });
+  } catch (err) {
+    console.log("❌ sendMessage socket error:", err);
+  }
+});
+
 
 
   // =========================
@@ -326,46 +332,47 @@ await Connection.findOneAndUpdate(
 // =========================
 
 // Register user for calls
+// ================= CALL SIGNALING (FIXED) =================
+
+// userId -> socket.id already stored in onlineUsers map
+
 socket.on("register-call", ({ userId }) => {
-  socketUserMap.set(socket.id, userId.toString());
-  onlineUsers.set(userId.toString(), socket.id); // track socketId for calls
+  onlineUsers.set(userId.toString(), socket.id);
 });
 
-// Call user
-socket.on("call-user", ({ to, offer, type }) => {
-  const receiverSocketId = onlineUsers.get(to); // lookup socketId
-  if (receiverSocketId) {
-    socket.to(receiverSocketId).emit("incoming-call", {
-      from: socket.id,
-      offer,
-      type,
-    });
-  } else {
-    // Receiver offline
-    socket.emit("call-failed", { reason: "User is offline" });
-  }
+// Call user by USER ID
+socket.on("call-user", ({ toUserId, offer, type, fromUserId }) => {
+  const targetSocket = onlineUsers.get(toUserId.toString());
+  if (!targetSocket) return;
+
+  socket.to(targetSocket).emit("incoming-call", {
+    fromUserId,
+    offer,
+    type,
+  });
 });
 
-socket.on("answer-call", ({ to, answer }) => {
-  const receiverSocketId = onlineUsers.get(to);
-  if (receiverSocketId) {
-    socket.to(receiverSocketId).emit("call-accepted", { answer });
-  }
+socket.on("answer-call", ({ toUserId, answer }) => {
+  const targetSocket = onlineUsers.get(toUserId.toString());
+  if (!targetSocket) return;
+
+  socket.to(targetSocket).emit("call-accepted", { answer });
 });
 
-socket.on("ice-candidate", ({ to, candidate }) => {
-  const receiverSocketId = onlineUsers.get(to);
-  if (receiverSocketId) {
-    socket.to(receiverSocketId).emit("ice-candidate", { candidate });
-  }
+socket.on("ice-candidate", ({ toUserId, candidate }) => {
+  const targetSocket = onlineUsers.get(toUserId.toString());
+  if (!targetSocket) return;
+
+  socket.to(targetSocket).emit("ice-candidate", { candidate });
 });
 
-socket.on("end-call", ({ to }) => {
-  const receiverSocketId = onlineUsers.get(to);
-  if (receiverSocketId) {
-    socket.to(receiverSocketId).emit("end-call");
-  }
+socket.on("end-call", ({ toUserId }) => {
+  const targetSocket = onlineUsers.get(toUserId.toString());
+  if (!targetSocket) return;
+
+  socket.to(targetSocket).emit("end-call");
 });
+
 
 
 
@@ -376,17 +383,20 @@ socket.on("disconnect", () => {
   const userId = socketUserMap.get(socket.id);
 
   if (userId) {
-    activeUsersInRoom.delete(userId.toString());
-	onlineUsers.delete(userId.toString());
     socketUserMap.delete(socket.id);
+
+    // Remove only if this socket is the active one
+    if (onlineUsers.get(userId.toString()) === socket.id) {
+      onlineUsers.delete(userId.toString());
+    }
+
+    activeUsersInRoom.delete(userId.toString());
   }
 
   console.log("🔴 Socket disconnected:", socket.id);
 });
 
-
 });
-
 
 // =========================
 // START SERVER
