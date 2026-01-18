@@ -12,9 +12,18 @@ const sendPush = async (pushToken, title, body, data = {}) => {
     {
       to: pushToken,
       sound: "default",
+
+      // ✅ ADD THESE TWO LINES
+      priority: "high",
+      channelId: "default",
+
       title,
       body,
-      data,
+
+      // ✅ ALWAYS SEND DATA
+      data: {
+        ...data,
+      },
     },
   ];
 

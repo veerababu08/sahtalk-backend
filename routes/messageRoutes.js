@@ -1,4 +1,6 @@
 // routes/messageRoutes.js
+const User = require('../models/User');
+const sendPush = require('../utils/sendPush');
 
 const express = require('express');
 const router = express.Router();
@@ -11,27 +13,45 @@ const Message = require('../models/Message');
 // --- A. Route to Save a New Message (POST) ---
 router.post('/messages', async (req, res) => {
     // You'll need to send chatId and senderId from the frontend
-    const { chatId, senderId, text } = req.body; 
+    const { chatId, senderId, receiverId, text } = req.body;
+
     
     // 🎯 The Key Logic for 48-Hour Expiry
     // Calculate the expiration time (48 hours from now)
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); 
+try {
+  const newMessage = await Message.create({
+    chatId,
+    senderId,
+    text,
+    expiresAt,
+  });
 
-    try {
-        const newMessage = await Message.create({
-            chatId,
-            senderId,
-            text,
-            // The model handles createdAt if defined, but setting it explicitly doesn't hurt
-            expiresAt, 
-        });
+  // 🔔 SEND PUSH NOTIFICATION TO RECEIVER (AFTER SAVE)
+  try {
+    const receiver = await User.findById(receiverId);
 
-        res.status(201).json(newMessage);
-    } catch (error) {
-        console.error('Error saving message:', error.message);
-        res.status(500).json({ error: 'Failed to save message' });
+    if (receiver && receiver.pushToken) {
+      await sendPush(
+        receiver.pushToken,
+        "New Message 💬",
+        text,
+        {
+          type: "message",
+          chatId,
+          senderId,
+        }
+      );
     }
-});
+  } catch (pushErr) {
+    console.log("Push notification failed:", pushErr.message);
+  }
+
+  res.status(201).json(newMessage);
+} catch (error) {
+  console.error("Error saving message:", error.message);
+  res.status(500).json({ error: "Failed to save message" });
+}
 
 
 // --- B. Route to Get ALL Messages for a Chat (GET) ---

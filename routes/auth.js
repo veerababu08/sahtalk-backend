@@ -80,13 +80,22 @@ router.post("/login", async (req, res) => {
 
 router.post("/update-push-token", async (req, res) => {
   try {
-    const { userId, pushToken } = req.body;
+    const { pushToken } = req.body;
 
-    if (!userId || !pushToken) {
-      return res.status(400).json({ message: "Missing userId or pushToken" });
+    if (!pushToken) {
+      return res.status(400).json({ message: "Missing pushToken" });
+    }
+
+    // userId comes from auth middleware OR frontend
+    const userId = req.userId || req.body.userId;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
     await User.findByIdAndUpdate(userId, { pushToken });
+
+    console.log("✅ Push token saved for user:", userId);
 
     res.json({ success: true });
   } catch (error) {
@@ -94,6 +103,7 @@ router.post("/update-push-token", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 
 /* ================= SEND OTP ================= */
