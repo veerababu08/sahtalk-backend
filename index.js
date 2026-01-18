@@ -252,6 +252,53 @@ socket.on("joinRoom", ({ roomId, userId }) => {
     socketId: socket.id,
   });
 });
+// =========================
+// 📞 CALL SIGNALING (VOICE + VIDEO)
+// =========================
+
+// Register user for calls
+socket.on("register-call", ({ userId }) => {
+  onlineUsers.set(userId.toString(), socket.id);
+});
+
+// CALL USER
+socket.on("call-user", ({ toUserId, roomId, callerId, type }) => {
+  const receiverSocket = onlineUsers.get(toUserId.toString());
+
+  if (receiverSocket) {
+    io.to(receiverSocket).emit("incoming-call", {
+      roomId,
+      callerId,
+      type, // "audio" | "video"
+    });
+  }
+});
+
+// ACCEPT CALL
+socket.on("accept-call", ({ roomId }) => {
+  socket.join(roomId);
+  socket.to(roomId).emit("call-accepted");
+});
+
+// END CALL
+socket.on("end-call", ({ roomId }) => {
+  io.to(roomId).emit("call-ended");
+});
+
+// =========================
+// 🔁 WEBRTC SIGNALING
+// =========================
+socket.on("offer", ({ roomId, offer }) => {
+  socket.to(roomId).emit("offer", offer);
+});
+
+socket.on("answer", ({ roomId, answer }) => {
+  socket.to(roomId).emit("answer", answer);
+});
+
+socket.on("ice-candidate", ({ roomId, candidate }) => {
+  socket.to(roomId).emit("ice-candidate", candidate);
+});
 
 
   // ✅ SEND MESSAGE
@@ -341,44 +388,7 @@ socket.on("register-call", ({ userId }) => {
 });
 
 // Call user by USER ID
-socket.on("call-user", ({ toUserId, offer, type, fromUserId }) => {
-  const targetSocket = onlineUsers.get(toUserId.toString());
-  if (!targetSocket) return;
 
-  socket.to(targetSocket).emit("incoming-call", {
-    fromUserId,
-    offer,
-    type,
-  });
-});
-
-socket.on("answer-call", ({ toUserId, answer }) => {
-  const targetSocket = onlineUsers.get(toUserId.toString());
-  if (!targetSocket) return;
-
-  socket.to(targetSocket).emit("call-accepted", { answer });
-});
-
-socket.on("ice-candidate", ({ toUserId, candidate }) => {
-  const targetSocket = onlineUsers.get(toUserId.toString());
-  if (!targetSocket) return;
-
-  socket.to(targetSocket).emit("ice-candidate", { candidate });
-});
-socket.on("reject-call", ({ to }) => {
-  const targetSocket = onlineUsers.get(to.toString());
-  if (targetSocket) {
-    socket.to(targetSocket).emit("call-rejected");
-  }
-});
-
-
-socket.on("end-call", ({ toUserId }) => {
-  const targetSocket = onlineUsers.get(toUserId.toString());
-  if (!targetSocket) return;
-
-  socket.to(targetSocket).emit("end-call");
-});
 
 
 
