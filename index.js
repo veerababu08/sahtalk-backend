@@ -275,14 +275,19 @@ socket.on("call-user", ({ toUserId, roomId, callerId, type }) => {
 });
 
 // ACCEPT CALL
-socket.on("accept-call", ({ roomId }) => {
+socket.on("accept-call", ({ roomId, callerId }) => {
   socket.join(roomId);
-  socket.to(roomId).emit("call-accepted");
+
+  const callerSocket = onlineUsers.get(callerId.toString());
+  if (callerSocket) {
+    io.to(callerSocket).emit("call-accepted", { roomId });
+  }
 });
+
 
 // END CALL
 socket.on("end-call", ({ roomId }) => {
-  io.to(roomId).emit("call-ended");
+  io.to(roomId).emit("end-call");
 });
 
 // =========================

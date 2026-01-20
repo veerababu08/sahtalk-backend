@@ -1,4 +1,6 @@
 // routes/messageRoutes.js
+const User = require("../models/User");
+const fetch = require("node-fetch");
 
 const express = require('express');
 const router = express.Router();
@@ -9,29 +11,63 @@ const Message = require('../models/message');
 // const { protect } = require('../middleware/authMiddleware'); 
 
 // --- A. Route to Save a New Message (POST) ---
-router.post('/messages', async (req, res) => {
-    // You'll need to send chatId and senderId from the frontend
-    const { chatId, senderId, text } = req.body; 
-    
-    // 🎯 The Key Logic for 48-Hour Expiry
-    // Calculate the expiration time (48 hours from now)
-    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); 
+router.post("/messages", async (req, res) => {
+  const { chatId, senderId, text } = req.body;
 
-    try {
-        const newMessage = await Message.create({
+  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+  try {
+    const message = await Message.create({
+      chatId,
+      senderId,
+      text,
+      expiresAt,
+    });
+
+    // 🔍 Get sender details
+    const sender = await User.findById(senderId).select(
+      "username profileImage"
+    );
+
+    // 🔍 Get all users in chat EXCEPT sender
+    const receivers = await User.find({
+      _id: { $ne: senderId },
+      pushToken: { $ne: null },
+    });
+
+    // 🔔 SEND PUSH NOTIFICATION
+    for (const user of receivers) {
+      await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          to: user.pushToken,
+          sound: "default",
+          title: sender.username, // ✅ SENDER NAME
+          body: text, // ✅ MESSAGE TEXT
+	image: sender.profileImage
+
+          data: {
+            type: "chat",
             chatId,
             senderId,
-            text,
-            // The model handles createdAt if defined, but setting it explicitly doesn't hurt
-            expiresAt, 
-        });
-
-        res.status(201).json(newMessage);
-    } catch (error) {
-        console.error('Error saving message:', error.message);
-        res.status(500).json({ error: 'Failed to save message' });
+            senderName: sender.username,
+            senderAvatar: sender.profileImage,
+          },
+        }),
+      });
     }
+
+    res.status(201).json(message);
+  } catch (error) {
+    console.error("Error saving message:", error);
+    res.status(500).json({ error: "Failed to save message" });
+  }
 });
+
 
 
 // --- B. Route to Get ALL Messages for a Chat (GET) ---
