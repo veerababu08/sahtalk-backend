@@ -375,24 +375,7 @@ socket.on("sendMessage", async (data) => {
 
 
 
-  // =========================
-  // 📞 VOICE / VIDEO CALL SIGNALING
-  // =========================
-// ================= CALL SIGNALING =================
-// =========================
-// 📞 VOICE / VIDEO CALL SIGNALING
-// =========================
-
-// Register user for calls
-// ================= CALL SIGNALING (FIXED) =================
-
-// userId -> socket.id already stored in onlineUsers map
-
-socket.on("register-call", ({ userId }) => {
-  onlineUsers.set(userId.toString(), socket.id);
-});
-
-// Call user by USER ID
+ 
 
 
 
