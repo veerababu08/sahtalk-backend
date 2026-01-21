@@ -344,7 +344,8 @@ socket.on("sendMessage", async (data) => {
     );
 
     // ✅ Emit to room
-    socket.to(data.roomId).emit("receiveMessage", msg);
+    io.to(data.roomId).emit("receiveMessage", msg);
+
 
     // ✅ PUSH NOTIFICATION (INSIDE!)
     if (receiverId.toString() !== data.sender) {
@@ -353,10 +354,8 @@ socket.on("sendMessage", async (data) => {
         receiverId.toString()
       );
 
-      if (
-        receiver?.pushToken &&
-        receiverActiveRoom !== data.roomId
-      ) {
+    if (receiver?.pushToken) {
+
         const senderUser = await User.findById(data.sender).select(
           "username"
         );
