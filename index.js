@@ -309,9 +309,9 @@ socket.on("ice-candidate", ({ roomId, candidate }) => {
   // ✅ SEND MESSAGE
 socket.on("sendMessage", async (data) => {
   try {
-    // 🛑 Prevent duplicate messages
     if (data.clientTempId) {
       const exists = await Message.findOne({
+        roomId: data.roomId,
         clientTempId: data.clientTempId,
       });
       if (exists) return;
@@ -322,14 +322,20 @@ socket.on("sendMessage", async (data) => {
     });
     if (!connection) return;
 
-    const receiverId =
-      connection.sender.toString() === data.sender
-        ? connection.receiver
-        : connection.sender;
+    const senderId = data.sender.toString();
+    let receiverId;
+
+    if (connection.sender.toString() === senderId) {
+      receiverId = connection.receiver;
+    } else if (connection.receiver.toString() === senderId) {
+      receiverId = connection.sender;
+    } else {
+      return;
+    }
 
     const msg = await Message.create({
       roomId: data.roomId,
-      sender: data.sender,
+      sender: senderId,
       receiver: receiverId,
       content: data.text || "",
       messageType: data.type || "text",
@@ -338,13 +344,17 @@ socket.on("sendMessage", async (data) => {
       clientTempId: data.clientTempId,
     });
 
-    await Connection.findOneAndUpdate(
-      { roomId: data.roomId },
-      { lastMessage: msg._id }
-    );
-
-    // ✅ Emit to room
     io.to(data.roomId).emit("receiveMessage", msg);
+
+    const receiverSocketId = onlineUsers.get(receiverId.toString());
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("receiveMessage", msg);
+    }
+  } catch (err) {
+    console.error("❌ sendMessage error:", err);
+  }
+});
+
 
 
     // ✅ PUSH NOTIFICATION (INSIDE!)
@@ -360,13 +370,20 @@ socket.on("sendMessage", async (data) => {
           "username"
         );
 
-        await sendPushNotification(
-          receiver.pushToken,
-          senderUser.username,
-          data.text || "📩 New message received"
-        );
-      }
-    }
+     const receiverActiveRoom = activeUsersInRoom.get(receiverId.toString());
+
+if (!receiverActiveRoom || receiverActiveRoom !== data.roomId) {
+  if (receiver?.pushToken) {
+    const senderUser = await User.findById(data.sender).select("username");
+
+    await sendPushNotification(
+      receiver.pushToken,
+      senderUser.username,
+      data.text || "📩 New message received"
+    );
+  }
+}
+
   } catch (err) {
     console.log("❌ sendMessage socket error:", err);
   }
@@ -374,7 +391,14 @@ socket.on("sendMessage", async (data) => {
 
 
 
- 
+ socket.on("leaveRoom", ({ roomId, userId }) => {
+  socket.leave(roomId);
+
+  if (userId) {
+    activeUsersInRoom.delete(userId.toString());
+  }
+});
+
 
 
 
