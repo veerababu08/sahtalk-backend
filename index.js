@@ -231,7 +231,7 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
     name: req.file.originalname,
     size: req.file.size,
   });
-});
+
 
 // =========================
 // SOCKET.IO
@@ -309,6 +309,7 @@ socket.on("ice-candidate", ({ roomId, candidate }) => {
   // ✅ SEND MESSAGE
 socket.on("sendMessage", async (data) => {
   try {
+    // 🛑 Prevent duplicate messages
     if (data.clientTempId) {
       const exists = await Message.findOne({
         roomId: data.roomId,
@@ -344,16 +345,42 @@ socket.on("sendMessage", async (data) => {
       clientTempId: data.clientTempId,
     });
 
+    // ✅ Emit to chat room (sender)
     io.to(data.roomId).emit("receiveMessage", msg);
 
+    // ✅ Emit directly to receiver if online
     const receiverSocketId = onlineUsers.get(receiverId.toString());
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("receiveMessage", msg);
     }
+
+    // ✅ PUSH NOTIFICATION (only if not in same room)
+    const receiverActiveRoom = activeUsersInRoom.get(
+      receiverId.toString()
+    );
+
+    if (
+      receiverSocketId &&
+      receiverActiveRoom === data.roomId
+    ) {
+      return; // user is already viewing the chat
+    }
+
+    const receiver = await User.findById(receiverId);
+    if (receiver?.pushToken) {
+      const senderUser = await User.findById(senderId).select("username");
+
+      await sendPushNotification(
+        receiver.pushToken,
+        senderUser.username,
+        data.text || "📩 New message received"
+      );
+    }
   } catch (err) {
-    console.error("❌ sendMessage error:", err);
+    console.error("❌ sendMessage socket error:", err);
   }
 });
+
 
 
 
