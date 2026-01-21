@@ -237,9 +237,6 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
 // =========================
 // SOCKET.IO
 // =========================
-// =========================
-// SOCKET.IO
-// =========================
 io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id);
 
@@ -310,30 +307,14 @@ socket.on("ice-candidate", ({ roomId, candidate }) => {
   // ✅ SEND MESSAGE
 socket.on("sendMessage", async (data) => {
   try {
-    // 🛑 Prevent duplicate messages
-    if (data.clientTempId) {
-      const exists = await Message.findOne({
-        roomId: data.roomId,
-        clientTempId: data.clientTempId,
-      });
-      if (exists) return;
-    }
-
-    const connection = await Connection.findOne({
-      roomId: data.roomId,
-    });
+    const connection = await Connection.findOne({ roomId: data.roomId });
     if (!connection) return;
 
     const senderId = data.sender.toString();
-    let receiverId;
-
-    if (connection.sender.toString() === senderId) {
-      receiverId = connection.receiver;
-    } else if (connection.receiver.toString() === senderId) {
-      receiverId = connection.sender;
-    } else {
-      return;
-    }
+    const receiverId =
+      connection.sender.toString() === senderId
+        ? connection.receiver.toString()
+        : connection.sender.toString();
 
     const msg = await Message.create({
       roomId: data.roomId,
@@ -346,42 +327,26 @@ socket.on("sendMessage", async (data) => {
       clientTempId: data.clientTempId,
     });
 
-    // ✅ Emit to chat room (sender)
+    // Send to room
     io.to(data.roomId).emit("receiveMessage", msg);
 
-    // ✅ Emit directly to receiver if online
-    const receiverSocketId = onlineUsers.get(receiverId.toString());
-    if (receiverSocketId) {
+    // Send direct only if receiver not in room
+    const receiverSocketId = onlineUsers.get(receiverId);
+    const receiverActiveRoom = activeUsersInRoom.get(receiverId);
+
+    if (receiverSocketId && receiverActiveRoom !== data.roomId) {
       io.to(receiverSocketId).emit("receiveMessage", msg);
     }
 
-    // ✅ PUSH NOTIFICATION (only if not in same room)
-    const receiverActiveRoom = activeUsersInRoom.get(
-      receiverId.toString()
-    );
-
-    if (
-      receiverSocketId &&
-      receiverActiveRoom === data.roomId
-    ) {
-      return; // user is already viewing the chat
-    }
-
-    const receiver = await User.findById(receiverId);
-    if (receiver?.pushToken) {
-      const senderUser = await User.findById(senderId).select("username");
-
-      await sendPushNotification(
-        receiver.pushToken,
-        senderUser.username,
-        data.text || "📩 New message received"
-      );
-    }
   } catch (err) {
-    console.error("❌ sendMessage socket error:", err);
+    console.error("❌ sendMessage error:", err);
   }
 });
 
+
+
+
+   
 
 
 
