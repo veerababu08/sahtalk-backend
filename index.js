@@ -231,6 +231,7 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
     name: req.file.originalname,
     size: req.file.size,
   });
+});
 
 
 // =========================
@@ -384,37 +385,7 @@ socket.on("sendMessage", async (data) => {
 
 
 
-    // ✅ PUSH NOTIFICATION (INSIDE!)
-    if (receiverId.toString() !== data.sender) {
-      const receiver = await User.findById(receiverId);
-      const receiverActiveRoom = activeUsersInRoom.get(
-        receiverId.toString()
-      );
 
-    if (receiver?.pushToken) {
-
-        const senderUser = await User.findById(data.sender).select(
-          "username"
-        );
-
-     const receiverActiveRoom = activeUsersInRoom.get(receiverId.toString());
-
-if (!receiverActiveRoom || receiverActiveRoom !== data.roomId) {
-  if (receiver?.pushToken) {
-    const senderUser = await User.findById(data.sender).select("username");
-
-    await sendPushNotification(
-      receiver.pushToken,
-      senderUser.username,
-      data.text || "📩 New message received"
-    );
-  }
-}
-
-  } catch (err) {
-    console.log("❌ sendMessage socket error:", err);
-  }
-});
 
 
 
