@@ -329,12 +329,7 @@ socket.on("sendMessage", async (data) => {
 
 io.to(data.roomId).emit("receiveMessage", msg);
 
-const receiverSocketId = onlineUsers.get(receiverId);
-const receiverActiveRoom = activeUsersInRoom.get(receiverId);
 
-if (receiverSocketId && receiverActiveRoom !== data.roomId) {
-  io.to(receiverSocketId).emit("receiveMessage", msg);
-}
 
 
 
