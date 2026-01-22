@@ -328,15 +328,15 @@ socket.on("sendMessage", async (data) => {
     });
 
     // Send to room
-    io.to(data.roomId).emit("receiveMessage", msg);
+// ✅ Always send to room
+io.to(data.roomId).emit("receiveMessage", msg);
 
-    // Send direct only if receiver not in room
-    const receiverSocketId = onlineUsers.get(receiverId);
-    const receiverActiveRoom = activeUsersInRoom.get(receiverId);
+// ✅ Also send directly if receiver socket exists
+const receiverSocketId = onlineUsers.get(receiverId);
+if (receiverSocketId) {
+  io.to(receiverSocketId).emit("receiveMessage", msg);
+}
 
-    if (receiverSocketId && receiverActiveRoom !== data.roomId) {
-      io.to(receiverSocketId).emit("receiveMessage", msg);
-    }
 
   } catch (err) {
     console.error("❌ sendMessage error:", err);
