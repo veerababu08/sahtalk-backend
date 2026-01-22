@@ -327,15 +327,15 @@ socket.on("sendMessage", async (data) => {
       clientTempId: data.clientTempId,
     });
 
-    // Send to room
-// ✅ Always send to room
 io.to(data.roomId).emit("receiveMessage", msg);
 
-// ✅ Also send directly if receiver socket exists
 const receiverSocketId = onlineUsers.get(receiverId);
-if (receiverSocketId) {
+const receiverActiveRoom = activeUsersInRoom.get(receiverId);
+
+if (receiverSocketId && receiverActiveRoom !== data.roomId) {
   io.to(receiverSocketId).emit("receiveMessage", msg);
 }
+
 
 
   } catch (err) {
