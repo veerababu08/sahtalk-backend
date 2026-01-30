@@ -327,16 +327,33 @@ socket.on("sendMessage", async (data) => {
       clientTempId: data.clientTempId,
     });
 
-io.to(data.roomId).emit("receiveMessage", msg);
+    // ✅ Emit to sender (guaranteed)
+    socket.emit("receiveMessage", msg);
 
+    // ✅ Emit to room (if receiver joined)
+    socket.to(data.roomId).emit("receiveMessage", msg);
 
+    // ✅ Emit directly to receiver socket (if online)
+    const receiverSocketId = onlineUsers.get(receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("receiveMessage", msg);
+    }
 
-
+    // ✅ SEND PUSH NOTIFICATION
+    const receiver = await User.findById(receiverId);
+    if (receiver?.expoPushToken) {
+      await sendPushNotification(
+        receiver.expoPushToken,
+        "New message",
+        msg.content || "📎 Attachment"
+      );
+    }
 
   } catch (err) {
     console.error("❌ sendMessage error:", err);
   }
 });
+
 
 
 
