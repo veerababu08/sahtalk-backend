@@ -263,11 +263,14 @@ socket.on("register-call", ({ userId }) => {
 socket.on("call-user", ({ toUserId, roomId, callerId, type }) => {
   const receiverSocket = onlineUsers.get(toUserId.toString());
 
+  // 🔥 Caller must join room immediately
+  socket.join(roomId);
+
   if (receiverSocket) {
     io.to(receiverSocket).emit("incoming-call", {
       roomId,
       callerId,
-      type, // "audio" | "video"
+      type,
     });
   }
 });
@@ -328,22 +331,16 @@ socket.on("sendMessage", async (data) => {
     });
 
     // ✅ Emit to sender (guaranteed)
-    socket.emit("receiveMessage", msg);
+   // Send to everyone in room INCLUDING sender
+io.to(data.roomId).emit("receiveMessage", msg);
 
-    // ✅ Emit to room (if receiver joined)
-    socket.to(data.roomId).emit("receiveMessage", msg);
-
-    // ✅ Emit directly to receiver socket (if online)
-    const receiverSocketId = onlineUsers.get(receiverId);
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("receiveMessage", msg);
-    }
 
     // ✅ SEND PUSH NOTIFICATION
     const receiver = await User.findById(receiverId);
-    if (receiver?.expoPushToken) {
+    if (receiver?.pushToken)
+ {
       await sendPushNotification(
-        receiver.expoPushToken,
+        receiver.pushToken,
         "New message",
         msg.content || "📎 Attachment"
       );
