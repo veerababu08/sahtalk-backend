@@ -336,18 +336,25 @@ io.to(data.roomId).emit("receiveMessage", msg);
 
 
     // ✅ SEND PUSH NOTIFICATION
-    const receiver = await User.findById(receiverId);
-    if (receiver?.pushToken)
- {
-      await sendPushNotification(
-        receiver.pushToken,
-        "New message",
-        msg.content || "📎 Attachment"
-      );
+ router.post("/update-push-token", async (req, res) => {
+  try {
+    console.log("📩 Push token request:", req.body);
+
+    const { pushToken, userId } = req.body;
+
+    if (!pushToken || !userId) {
+      console.log("❌ Missing data");
+      return res.status(400).json({ message: "Missing data" });
     }
 
-  } catch (err) {
-    console.error("❌ sendMessage error:", err);
+    await User.findByIdAndUpdate(userId, { pushToken });
+
+    console.log("✅ Push token saved for:", userId);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("❌ Update push token error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
