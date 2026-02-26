@@ -30,10 +30,27 @@ router.post("/messages", async (req, res) => {
     );
 
     // 🔍 Get all users in chat EXCEPT sender
-    const receivers = await User.find({
-      _id: { $ne: senderId },
-      pushToken: { $ne: null },
-    });
+   const Chat = require("../models/Chat"); // make sure this exists
+
+// 1️⃣ Get chat
+const chat = await Chat.findById(chatId);
+
+if (!chat) {
+  return res.status(404).json({ error: "Chat not found" });
+}
+
+// 2️⃣ Get all members except sender
+const receiverIds = chat.members.filter(
+  (id) => id.toString() !== senderId
+);
+
+// 3️⃣ Get only users with valid push tokens
+const receivers = await User.find({
+  _id: { $in: receiverIds },
+  pushToken: { $exists: true, $ne: null },
+});
+
+console.log("Receivers found:", receivers.length);
 
     // 🔔 SEND PUSH NOTIFICATION
     for (const user of receivers) {
@@ -48,11 +65,11 @@ router.post("/messages", async (req, res) => {
           sound: "default",
           title: sender.username, // ✅ SENDER NAME
           body: text, // ✅ MESSAGE TEXT
-	image: sender.profileImage
+	image: sender.profileImage,
 
           data: {
             type: "chat",
-            chatId,
+            roomId: chatId,
             senderId,
             senderName: sender.username,
             senderAvatar: sender.profileImage,
