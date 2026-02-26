@@ -1,57 +1,90 @@
 // routes/messageRoutes.js
-const User = require('../models/User');
-const sendPush = require('../utils/sendPush');
+const User = require("../models/User");
+const fetch = require("node-fetch");
 
 const express = require('express');
 const router = express.Router();
 // Assuming your message model is correctly defined and imported here:
-const Message = require('../models/Message'); 
+const Message = require('../models/message'); 
 
 // Middleware to protect routes (assuming you have one, like authMiddleware)
 // const { protect } = require('../middleware/authMiddleware'); 
 
 // --- A. Route to Save a New Message (POST) ---
-router.post('/messages', async (req, res) => {
-    // You'll need to send chatId and senderId from the frontend
-    const { chatId, senderId, receiverId, text } = req.body;
+router.post("/messages", async (req, res) => {
+  const { chatId, senderId, text } = req.body;
 
-    
-    // 🎯 The Key Logic for 48-Hour Expiry
-    // Calculate the expiration time (48 hours from now)
-    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); 
-try {
-  const newMessage = await Message.create({
-    chatId,
-    senderId,
-    text,
-    expiresAt,
-  });
+  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
-  // 🔔 SEND PUSH NOTIFICATION TO RECEIVER (AFTER SAVE)
   try {
-    const receiver = await User.findById(receiverId);
+    const message = await Message.create({
+      chatId,
+      senderId,
+      text,
+      expiresAt,
+    });
 
-    if (receiver && receiver.pushToken) {
-      await sendPush(
-        receiver.pushToken,
-        "New Message 💬",
-        text,
-        {
-          type: "message",
-          chatId,
-          senderId,
-        }
-      );
-    }
-  } catch (pushErr) {
-    console.log("Push notification failed:", pushErr.message);
-  }
+    // 🔍 Get sender details
+    const sender = await User.findById(senderId).select(
+      "username profileImage"
+    );
 
-  res.status(201).json(newMessage);
-} catch (error) {
-  console.error("Error saving message:", error.message);
-  res.status(500).json({ error: "Failed to save message" });
+    // 🔍 Get all users in chat EXCEPT sender
+   const Chat = require("../models/Chat"); // make sure this exists
+
+// 1️⃣ Get chat
+const chat = await Chat.findById(chatId);
+
+if (!chat) {
+  return res.status(404).json({ error: "Chat not found" });
 }
+
+// 2️⃣ Get all members except sender
+const receiverIds = chat.members.filter(
+  (id) => id.toString() !== senderId
+);
+
+// 3️⃣ Get only users with valid push tokens
+const receivers = await User.find({
+  _id: { $in: receiverIds },
+  pushToken: { $exists: true, $ne: null },
+});
+
+console.log("Receivers found:", receivers.length);
+
+    // 🔔 SEND PUSH NOTIFICATION
+    for (const user of receivers) {
+      await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          to: user.pushToken,
+          sound: "default",
+          title: sender.username, // ✅ SENDER NAME
+          body: text, // ✅ MESSAGE TEXT
+	image: sender.profileImage,
+
+          data: {
+            type: "chat",
+            roomId: chatId,
+            senderId,
+            senderName: sender.username,
+            senderAvatar: sender.profileImage,
+          },
+        }),
+      });
+    }
+
+    res.status(201).json(message);
+  } catch (error) {
+    console.error("Error saving message:", error);
+    res.status(500).json({ error: "Failed to save message" });
+  }
+});
+
 
 
 // --- B. Route to Get ALL Messages for a Chat (GET) ---
