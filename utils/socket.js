@@ -4,26 +4,30 @@ const User = require("../models/User");
 const Connection = require("../models/Connection");
 const { sendPushNotification } = require("./sendPush");
 
+// 🔥 Store online users
+const onlineUsers = new Map();
+
 module.exports = (io) => {
   io.on("connection", (socket) => {
     console.log("🟢 Socket connected:", socket.id);
 
-    // JOIN ROOM
+    // ✅ Register user after login
+    socket.on("registerUser", (userId) => {
+      onlineUsers.set(userId.toString(), socket.id);
+      console.log("✅ User registered:", userId);
+    });
+
+    // OPTIONAL (if you still want rooms)
     socket.on("joinRoom", ({ roomId }) => {
       socket.join(roomId);
       console.log(`📥 Joined room ${roomId}`);
     });
 
-    // SEND MESSAGE
+    // ✅ SEND MESSAGE
     socket.on("sendMessage", async (data) => {
       try {
         // Save message
         const msg = await Message.create(data);
-
-        // Emit message to room
-        io.to(data.roomId).emit("receiveMessage", msg);
-// 🔔 PUSH NOTIFICATION
-
 
         // Find connection
         const connection = await Connection.findOne({
@@ -38,24 +42,37 @@ module.exports = (io) => {
             ? connection.receiver
             : connection.sender;
 
-        // Don't notify sender
-        if (receiverId.toString() === data.sender) return;
+        // 🔥 Check if receiver is online
+        const receiverSocketId = onlineUsers.get(
+          receiverId.toString()
+        );
 
-        // Get receiver
-        const receiver = await User.findById(receiverId);
+        if (receiverSocketId) {
+          // ✅ Send real-time message
+          io.to(receiverSocketId).emit("receiveMessage", msg);
+          console.log("📩 Message sent via socket");
+        } else {
+          console.log("📴 Receiver offline");
+        }
 
-        // Send push
-        if (receiver?.pushToken) {
-          await sendPushNotification(
-            receiver.pushToken,
-            "💬 New Message",
-            data.text || "You received a message",
-            {
-              type: "chat",
-              roomId: data.roomId,
-              senderId: data.sender,
-            }
-          );
+        // 🔔 PUSH NOTIFICATION (only if offline)
+        if (!receiverSocketId) {
+          const receiver = await User.findById(receiverId);
+
+          if (receiver?.pushToken) {
+            console.log("🚀 Sending push to:", receiver.pushToken);
+
+            await sendPushNotification(
+              receiver.pushToken,
+              "💬 New Message",
+              data.text || "You received a message",
+              {
+                type: "chat",
+                roomId: data.roomId,
+                senderId: data.sender,
+              }
+            );
+          }
         }
       } catch (err) {
         console.log("❌ Socket sendMessage error:", err);
@@ -64,6 +81,14 @@ module.exports = (io) => {
 
     socket.on("disconnect", () => {
       console.log("🔴 Socket disconnected:", socket.id);
+
+      // Remove user from onlineUsers
+      for (let [userId, id] of onlineUsers.entries()) {
+        if (id === socket.id) {
+          onlineUsers.delete(userId);
+          break;
+        }
+      }
     });
   });
 };
