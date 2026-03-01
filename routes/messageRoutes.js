@@ -1,6 +1,6 @@
 // routes/messageRoutes.js
 const User = require("../models/User");
-const fetch = require("node-fetch");
+const { sendPushNotification } = require("../utils/sendPush");
 
 const express = require('express');
 const router = express.Router();
@@ -53,30 +53,20 @@ const receivers = await User.find({
 console.log("Receivers found:", receivers.length);
 
     // 🔔 SEND PUSH NOTIFICATION
-    for (const user of receivers) {
-      await fetch("https://exp.host/--/api/v2/push/send", {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          to: user.pushToken,
-          sound: "default",
-          title: sender.username, // ✅ SENDER NAME
-          body: text, // ✅ MESSAGE TEXT
-	image: sender.profileImage,
-
-          data: {
-            type: "chat",
-            roomId: chatId,
-            senderId,
-            senderName: sender.username,
-            senderAvatar: sender.profileImage,
-          },
-        }),
-      });
+  for (const user of receivers) {
+  await sendPushNotification(
+    user.pushToken,
+    sender.username,
+    text,
+    {
+      type: "chat",
+      roomId: chatId,
+      senderId,
+      senderName: sender.username,
+      senderAvatar: sender.profileImage,
     }
+  );
+}
 
     res.status(201).json(message);
   } catch (error) {
