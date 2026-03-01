@@ -23,24 +23,6 @@ module.exports = (io) => {
         // Emit message to room
         io.to(data.roomId).emit("receiveMessage", msg);
 // 🔔 PUSH NOTIFICATION
-try {
-  const senderUser = await User.findById(sender);
-  const receiverUser = await User.findOne({
-    _id: { $ne: sender },
-    connections: roomId,
-  });
-
-  if (receiverUser?.pushToken) {
-    await sendPush(
-      receiverUser.pushToken,
-      senderUser?.name || "New Message",
-      text || "You received a new message",
-      { roomId }
-    );
-  }
-} catch (err) {
-  console.log("Push error:", err.message);
-}
 
 
         // Find connection

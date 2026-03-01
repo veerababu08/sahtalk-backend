@@ -232,6 +232,24 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
     size: req.file.size,
   });
 });
+app.post("/update-push-token", async (req, res) => {
+  try {
+    const { pushToken, userId } = req.body;
+
+    console.log("Saving push token:", pushToken);
+
+    if (!pushToken || !userId) {
+      return res.status(400).json({ message: "Missing data" });
+    }
+
+    await User.findByIdAndUpdate(userId, { pushToken });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("❌ Update push token error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 
 // =========================
@@ -352,22 +370,7 @@ socket.on("sendMessage", async (data) => {
   }
 });
 
-app.post("/update-push-token", async (req, res) => {
-  try {
-    const { pushToken, userId } = req.body;
 
-    if (!pushToken || !userId) {
-      return res.status(400).json({ message: "Missing data" });
-    }
-
-    await User.findByIdAndUpdate(userId, { pushToken });
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error("❌ Update push token error:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
 
 
 
