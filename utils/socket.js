@@ -1,78 +1,55 @@
-// utils/socket.js
 const Message = require("../models/Message");
 const User = require("../models/User");
 const Connection = require("../models/Connection");
 const { sendPushNotification } = require("./sendPush");
 
-// 🔥 Store online users
 const onlineUsers = new Map();
 
 module.exports = (io) => {
   io.on("connection", (socket) => {
     console.log("🟢 Socket connected:", socket.id);
 
-    // ✅ Register user after login
     socket.on("registerUser", (userId) => {
       onlineUsers.set(userId.toString(), socket.id);
       console.log("✅ User registered:", userId);
     });
 
-    // OPTIONAL (if you still want rooms)
     socket.on("joinRoom", ({ roomId }) => {
       socket.join(roomId);
-      console.log(`📥 Joined room ${roomId}`);
     });
 
-    // ✅ SEND MESSAGE
+    // ✅ SEND MESSAGE (Fixed Arguments)
     socket.on("sendMessage", async (data) => {
       try {
-        // Save message
         const msg = await Message.create(data);
-
-        // Find connection
-        const connection = await Connection.findOne({
-          roomId: data.roomId,
-        });
-
+        const connection = await Connection.findOne({ roomId: data.roomId });
         if (!connection) return;
 
-        // Find receiver
-        const receiverId =
-          connection.sender.toString() === data.sender
-            ? connection.receiver
-            : connection.sender;
+        const receiverId = connection.sender.toString() === data.sender 
+          ? connection.receiver 
+          : connection.sender;
 
-        // 🔥 Check if receiver is online
-        const receiverSocketId = onlineUsers.get(
-          receiverId.toString()
-        );
+        const receiverSocketId = onlineUsers.get(receiverId.toString());
 
         if (receiverSocketId) {
-          // ✅ Send real-time message
           io.to(receiverSocketId).emit("receiveMessage", msg);
-          console.log("📩 Message sent via socket");
-        } else {
-          console.log("📴 Receiver offline");
         }
 
-        // 🔔 PUSH NOTIFICATION (only if offline)
+        // 🔔 PUSH NOTIFICATION (Offline Logic)
         if (!receiverSocketId) {
           const receiver = await User.findById(receiverId);
-	const sender = await User.findById(data.sender);
+          const sender = await User.findById(data.sender);
 
           if (receiver?.pushToken) {
-            console.log("🚀 Sending push to:", receiver.pushToken);
-
             await sendPushNotification(
               receiver.pushToken,
-	      sender?.username || "Someone",
-              "💬 New Message",
-              
+              sender?.username || "Someone", // Title
+              "💬 New Message",              // Body
               {
                 type: "chat",
                 roomId: data.roomId,
                 senderId: data.sender,
-		icon: sender?.profileImage || "https://your-default-logo.png"
+                icon: sender?.profileImage || "https://your-default-logo.png"
               }
             );
           }
@@ -82,10 +59,42 @@ module.exports = (io) => {
       }
     });
 
-    socket.on("disconnect", () => {
-      console.log("🔴 Socket disconnected:", socket.id);
+    // 📞 CALL USER (New Logic for Call Notifications)
+    socket.on("call-user", async (data) => {
+      const { toUserId, roomId, callerId, type } = data;
+      const receiverSocketId = onlineUsers.get(toUserId.toString());
 
-      // Remove user from onlineUsers
+      if (receiverSocketId) {
+        // ✅ Receiver is online, send via Socket
+        io.to(receiverSocketId).emit("incoming-call", {
+          roomId,
+          callerId,
+          type,
+        });
+      } else {
+        // 🔔 Receiver is offline, send via Push Notification
+        const receiver = await User.findById(toUserId);
+        const caller = await User.findById(callerId);
+
+        if (receiver?.pushToken) {
+          await sendPushNotification(
+            receiver.pushToken,
+            `${caller?.username || "Someone"} is calling...`, // Title
+            `Incoming ${type} call`,                           // Body
+            {
+              type: "incoming-call", // Critical for RootLayout navigation
+              roomId,
+              senderId: callerId,
+              senderName: caller?.username,
+              callType: type,
+              icon: caller?.profileImage
+            }
+          );
+        }
+      }
+    });
+
+    socket.on("disconnect", () => {
       for (let [userId, id] of onlineUsers.entries()) {
         if (id === socket.id) {
           onlineUsers.delete(userId);
