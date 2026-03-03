@@ -58,18 +58,21 @@ module.exports = (io) => {
         // 🔔 PUSH NOTIFICATION (only if offline)
         if (!receiverSocketId) {
           const receiver = await User.findById(receiverId);
+	const sender = await User.findById(data.sender);
 
           if (receiver?.pushToken) {
             console.log("🚀 Sending push to:", receiver.pushToken);
 
             await sendPushNotification(
               receiver.pushToken,
+	      sender?.username || "Someone",
               "💬 New Message",
-              data.text || "You received a message",
+              
               {
                 type: "chat",
                 roomId: data.roomId,
                 senderId: data.sender,
+		icon: sender?.profileImage || "https://your-default-logo.png"
               }
             );
           }

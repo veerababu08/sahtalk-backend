@@ -11,12 +11,18 @@ const sendPushNotification = async (token, title, body, data = {}) => {
     await expo.sendPushNotificationsAsync([
       {
         to: token,
-        sound: "default",
         title,
         body,
         data,
-        channelId: "default", // 🔔 ADD THIS LINE - Critical for Android
-        priority: "high",      // 🔔 ADD THIS LINE - Ensures delivery when phone is idle
+	sound: "default",
+        // 🔔 FIXED: These must be inside the 'android' object
+	mutableContent: true,
+        android: {
+          channelId: "default",
+          priority: "high",
+	  sound: true, // 🔔 AND THIS
+	  largeIcon: data.icon || "https://your-default-app-icon.com/logo.png"
+        },
       },
     ]);
     console.log("✅ Expo notification ticket sent");
