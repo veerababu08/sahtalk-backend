@@ -15,8 +15,11 @@ const sendPushNotification = async (token, title, body, data = {}) => {
         title,
         body,
         data,
+        channelId: "default", // 🔔 ADD THIS LINE - Critical for Android
+        priority: "high",      // 🔔 ADD THIS LINE - Ensures delivery when phone is idle
       },
     ]);
+    console.log("✅ Expo notification ticket sent");
   } catch (err) {
     console.error("❌ Push send error:", err);
   }
