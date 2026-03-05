@@ -41,17 +41,19 @@ module.exports = (io) => {
           const sender = await User.findById(data.sender);
 
           if (receiver?.pushToken) {
-            await sendPushNotification(
-              receiver.pushToken,
-              sender?.username || "Someone", // Title
-              "💬 New Message",              // Body
-              {
-                type: "chat",
-                roomId: data.roomId,
-                senderId: data.sender,
-                icon: sender?.profileImage || "https://your-default-logo.png"
-              }
-            );
+           // NEW CODE (Copy this)
+await sendPushNotification(
+  receiver.pushToken,
+  sender?.username || "Someone",         // TITLE: Shows the sender's name
+  data.text || "💬 Sent an attachment",  // BODY: Shows the actual message text
+  {
+    type: "chat",
+    roomId: data.roomId,
+    senderId: data.sender,
+    senderName: sender?.username,        // Added for frontend navigation
+    icon: sender?.profileImage || "https://your-default-logo.png"
+  }
+);
           }
         }
       } catch (err) {
@@ -63,18 +65,19 @@ module.exports = (io) => {
     socket.on("call-user", async (data) => {
       const { toUserId, roomId, callerId, type } = data;
       const receiverSocketId = onlineUsers.get(toUserId.toString());
-
+const caller = await User.findById(callerId);
       if (receiverSocketId) {
         // ✅ Receiver is online, send via Socket
         io.to(receiverSocketId).emit("incoming-call", {
           roomId,
           callerId,
+	  callerName: caller?.username,
           type,
         });
       } else {
         // 🔔 Receiver is offline, send via Push Notification
         const receiver = await User.findById(toUserId);
-        const caller = await User.findById(callerId);
+        
 
         if (receiver?.pushToken) {
           await sendPushNotification(
