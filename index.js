@@ -40,6 +40,36 @@ app.use(cors({ origin: "*" }));
 const User = require("./models/User");
 const Message = require("./models/Message");
 const Connection = require("./models/Connection");
+// =========================
+// UPDATE PROFILE
+// =========================
+app.put("/api/users/update-profile", async (req, res) => {
+  try {
+    const { userId, username, bio, profileImage } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        username,
+        bio,
+        profileImage,
+      },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      success: true,
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("❌ Profile update error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 // =========================
 // AUTH / OTHER ROUTES

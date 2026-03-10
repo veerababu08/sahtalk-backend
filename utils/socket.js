@@ -62,40 +62,41 @@ await sendPushNotification(
     });
 
     // 📞 CALL USER (New Logic for Call Notifications)
-    socket.on("call-user", async (data) => {
-      const { toUserId, roomId, callerId, type } = data;
-      const receiverSocketId = onlineUsers.get(toUserId.toString());
-const caller = await User.findById(callerId);
-      if (receiverSocketId) {
-        // ✅ Receiver is online, send via Socket
-        io.to(receiverSocketId).emit("incoming-call", {
-          roomId,
-          callerId,
-	  callerName: caller?.username,
-          type,
-        });
-      } else {
-        // 🔔 Receiver is offline, send via Push Notification
-        const receiver = await User.findById(toUserId);
-        
+   socket.on("call-user", async (data) => {
+  const { toUserId, roomId, callerId, type } = data;
 
-        if (receiver?.pushToken) {
-          await sendPushNotification(
-            receiver.pushToken,
-            `${caller?.username || "Someone"} is calling...`, // Title
-            `Incoming ${type} call`,                           // Body
-            {
-              type: "incoming-call", // Critical for RootLayout navigation
-              roomId,
-              senderId: callerId,
-              senderName: caller?.username,
-              callType: type,
-              icon: caller?.profileImage
-            }
-          );
-        }
-      }
+  const receiverSocketId = onlineUsers.get(toUserId.toString());
+
+  const caller = await User.findById(callerId);
+  const receiver = await User.findById(toUserId);
+
+  // ✅ SEND SOCKET EVENT (if online)
+  if (receiverSocketId) {
+    io.to(receiverSocketId).emit("incoming-call", {
+      roomId,
+      callerId,
+      callerName: caller?.username,
+      type,
     });
+  }
+
+  // 🔔 ALWAYS SEND PUSH (important)
+  if (receiver?.pushToken) {
+    await sendPushNotification(
+      receiver.pushToken,
+      `${caller?.username || "Someone"} is calling`,
+      `📞 Incoming ${type} call`,
+      {
+        type: "incoming-call",
+        roomId,
+        senderId: callerId,
+        senderName: caller?.username,
+        callType: type,
+        icon: caller?.profileImage,
+      }
+    );
+  }
+});
 
     socket.on("disconnect", () => {
       for (let [userId, id] of onlineUsers.entries()) {
