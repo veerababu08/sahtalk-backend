@@ -329,16 +329,20 @@ socket.on("call-user", async ({ toUserId, roomId, callerId, type }) => {
     const receiver = await User.findById(toUserId);
 
     if (receiver?.pushToken) {
-      await sendPushNotification(
-        receiver.pushToken,
-        "Incoming Call 📞",
-        "Someone is calling you",
-        {
-          type: "call",
-          roomId,
-          callerId
-        }
-      );
+const caller = await User.findById(callerId);
+
+await sendPushNotification(
+  receiver.pushToken,
+  `${caller?.username || "Someone"} is calling`,
+  `📞 Incoming ${type || "voice"} call`,
+  {
+    type: "incoming-call",
+    roomId,
+    senderId: callerId,
+    senderName: caller?.username || "Someone",
+    callType: type
+  }
+);
     }
   } catch (err) {
     console.log("❌ Call push error:", err);
@@ -406,14 +410,16 @@ socket.on("sendMessage", async (data) => {
     io.to(data.roomId).emit("receiveMessage", msg);
 
     // Send push notification to receiver
-    const receiver = await User.findById(receiverId);
-    if (receiver?.pushToken) {
-      await sendPushNotification(
-        receiver.pushToken,
-        "New message",
-        msg.content || "📎 Attachment"
-      );
-    }
+   const receiver = await User.findById(receiverId);
+const sender = await User.findById(senderId);
+
+if (receiver?.pushToken) {
+  await sendPushNotification(
+    receiver.pushToken,
+    sender?.username || "New message",
+    msg.content || "📎 Attachment"
+  );
+}
 
   } catch (err) {
     console.error("❌ sendMessage error:", err);
