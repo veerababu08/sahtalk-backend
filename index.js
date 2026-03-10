@@ -309,19 +309,39 @@ socket.on("register-call", ({ userId }) => {
 
 // CALL USER
 // CALL USER
-socket.on("call-user", ({ toUserId, roomId, callerId, type }) => {
+socket.on("call-user", async ({ toUserId, roomId, callerId, type }) => {
   const receiverSocket = onlineUsers.get(toUserId.toString());
 
-  // Caller joins room
   socket.join(roomId);
 
+  // 🔹 Socket call (app open)
   if (receiverSocket) {
     io.to(receiverSocket).emit("incoming-call", {
       roomId,
       callerId,
       type,
-      callerSocketId: socket.id // important for WebRTC
+      callerSocketId: socket.id
     });
+  }
+
+  // 🔹 Push notification (app background / closed)
+  try {
+    const receiver = await User.findById(toUserId);
+
+    if (receiver?.pushToken) {
+      await sendPushNotification(
+        receiver.pushToken,
+        "Incoming Call 📞",
+        "Someone is calling you",
+        {
+          type: "call",
+          roomId,
+          callerId
+        }
+      );
+    }
+  } catch (err) {
+    console.log("❌ Call push error:", err);
   }
 });
 
