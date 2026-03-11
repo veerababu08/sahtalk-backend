@@ -192,7 +192,7 @@ app.put("/api/connections/:id/accept", async (req, res) => {
 // =========================
 // CHAT LIST / HOME
 // =========================
-app.get("/api/connections/:userId", async (req, res) => {
+app.get("/api/connections/chats/:userId", async (req, res) => {
   const connections = await Connection.find({
     status: "accepted",
     $or: [
@@ -382,6 +382,15 @@ socket.on("ice-candidate", ({ roomId, candidate }) => {
   socket.to(roomId).emit("ice-candidate", candidate);
 });
 
+// TYPING INDICATOR
+socket.on("typing", ({ roomId, userId }) => {
+  socket.to(roomId).emit("user-typing", { userId });
+});
+
+socket.on("stop-typing", ({ roomId, userId }) => {
+  socket.to(roomId).emit("user-stop-typing", { userId });
+});
+
 
   // ✅ SEND MESSAGE
 socket.on("sendMessage", async (data) => {
@@ -405,14 +414,7 @@ socket.on("sendMessage", async (data) => {
       fileMeta: data.fileMeta || null,
       clientTempId: data.clientTempId,
     });
-// TYPING INDICATOR
-socket.on("typing", ({ roomId, userId }) => {
-  socket.to(roomId).emit("user-typing", { userId });
-});
 
-socket.on("stop-typing", ({ roomId, userId }) => {
-  socket.to(roomId).emit("user-stop-typing", { userId });
-});
 
     // Send message to everyone in the room (including sender)
     io.to(data.roomId).emit("receiveMessage", msg);
