@@ -405,6 +405,14 @@ socket.on("sendMessage", async (data) => {
       fileMeta: data.fileMeta || null,
       clientTempId: data.clientTempId,
     });
+// TYPING INDICATOR
+socket.on("typing", ({ roomId, userId }) => {
+  socket.to(roomId).emit("user-typing", { userId });
+});
+
+socket.on("stop-typing", ({ roomId, userId }) => {
+  socket.to(roomId).emit("user-stop-typing", { userId });
+});
 
     // Send message to everyone in the room (including sender)
     io.to(data.roomId).emit("receiveMessage", msg);
