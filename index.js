@@ -203,14 +203,22 @@ app.get("/api/connections/chats/:userId", async (req, res) => {
     .populate("sender", "username email profileImage")
     .populate("receiver", "username email profileImage");
 
-  const formatted = connections.map((conn) => {
-    const isSender = conn.sender._id.toString() === req.params.userId;
-    return {
-      _id: conn._id,
-      roomId: conn.roomId,
-      otherUser: isSender ? conn.receiver : conn.sender,
-    };
-  });
+  const formatted = await Promise.all(
+    connections.map(async (conn) => {
+
+      const isSender = conn.sender._id.toString() === req.params.userId;
+
+      const lastMsg = await Message.findOne({ roomId: conn.roomId })
+        .sort({ createdAt: -1 });
+
+      return {
+        _id: conn._id,
+        roomId: conn.roomId,
+        otherUser: isSender ? conn.receiver : conn.sender,
+        lastMessage: lastMsg?.content || "Media"
+      };
+    })
+  );
 
   res.json(formatted);
 });
@@ -384,11 +392,11 @@ socket.on("ice-candidate", ({ roomId, candidate }) => {
 
 // TYPING INDICATOR
 socket.on("typing", ({ roomId, userId }) => {
-  socket.to(roomId).emit("user-typing", { userId });
+  socket.to(roomId).emit("user-typing", { roomId, userId });
 });
 
 socket.on("stop-typing", ({ roomId, userId }) => {
-  socket.to(roomId).emit("user-stop-typing", { userId });
+  socket.to(roomId).emit("user-stop-typing", { roomId, userId });
 });
 
 
@@ -417,7 +425,17 @@ socket.on("sendMessage", async (data) => {
 
 
     // Send message to everyone in the room (including sender)
-    io.to(data.roomId).emit("receiveMessage", msg);
+    io.to(data.roomId).emit("receiveMessage", {
+  _id: msg._id,
+  roomId: msg.roomId,
+  sender: msg.sender,
+  receiver: msg.receiver,
+  content: msg.content,
+  messageType: msg.messageType,
+  mediaUrl: msg.mediaUrl,
+  fileMeta: msg.fileMeta,
+  createdAt: msg.createdAt
+});
 
     // Send push notification to receiver
    const receiver = await User.findById(receiverId);
