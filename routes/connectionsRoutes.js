@@ -195,7 +195,7 @@ router.get("/chats/:userId", async (req, res) => {
       };
     });
 
-    res.json({ success: true, chats });
+    res.json(chats);
   } catch (err) {
     console.error("CHAT LIST ERROR:", err);
     res.status(500).json({ success: false });
