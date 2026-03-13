@@ -220,7 +220,10 @@ app.get("/api/connections/chats/:userId", async (req, res) => {
     })
   );
 
-  res.json(formatted);
+res.json({
+  success: true,
+  chats: formatted
+});
 });
 
 // =========================
