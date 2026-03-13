@@ -212,11 +212,12 @@ app.get("/api/connections/chats/:userId", async (req, res) => {
         .sort({ createdAt: -1 });
 
       return {
-        _id: conn._id,
-        roomId: conn.roomId,
-        otherUser: isSender ? conn.receiver : conn.sender,
-        lastMessage: lastMsg?.content || "Media"
-      };
+  _id: conn._id,
+  roomId: conn.roomId,
+  otherUser: isSender ? conn.receiver : conn.sender,
+  lastMessage: lastMsg?.content || "Media",
+  updatedAt: lastMsg?.createdAt || conn.updatedAt
+};
     })
   );
 
