@@ -173,7 +173,7 @@ router.post("/reject", async (req, res) => {
 /* ================= CHAT LIST ================= */
 router.get("/chats/:userId", async (req, res) => {
   try {
-    const userId = req.params.userId;
+    const userId = new mongoose.Types.ObjectId(req.params.userId);
 
     const connections = await Connection.find({
       status: "accepted",
@@ -184,7 +184,7 @@ router.get("/chats/:userId", async (req, res) => {
 
     const chats = connections.map((conn) => {
       const otherUser =
-        conn.sender._id.toString() === userId
+        conn.sender._id.toString() === userId.toString()
           ? conn.receiver
           : conn.sender;
 
@@ -195,7 +195,10 @@ router.get("/chats/:userId", async (req, res) => {
       };
     });
 
-    res.json(chats);
+    res.json({
+      success: true,
+      chats,
+    });
   } catch (err) {
     console.error("CHAT LIST ERROR:", err);
     res.status(500).json({ success: false });
