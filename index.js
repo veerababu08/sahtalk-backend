@@ -495,8 +495,6 @@ socket.on("disconnect", () => {
   console.log("🔴 Socket disconnected:", socket.id);
 });
 
-});
-
 // =========================
 // START SERVER
 // =========================
