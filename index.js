@@ -12,6 +12,7 @@ const path = require("path");
 const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
 const { sendPushNotification } = require("./utils/sendPush");
+const socketHandler = require("./utils/socketHandler");
 
 
 // =========================
@@ -27,6 +28,8 @@ const onlineUsers = new Map();       // userId -> socket.id (for calls)
 const io = new Server(server, {
   cors: { origin: "*" },
 });
+const socketHandler = require("./utils/socketHandler");
+socketHandler(io);
 
 // =========================
 // MIDDLEWARE
@@ -216,7 +219,7 @@ app.get("/api/connections/chats/:userId", async (req, res) => {
   roomId: conn.roomId,
   otherUser: isSender ? conn.receiver : conn.sender,
   lastMessage: lastMsg?.content || "Media",
-  updatedAt: lastMsg?.createdAt || conn.updatedAt
+  updatedAt: lastMsg?.createdAt || new Date()
 };
     })
   );
@@ -274,7 +277,7 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
     size: req.file.size,
   });
 });
-app.post("/update-push-token", async (req, res) => {
+app.post("/api/users/update-push-token", async (req, res) => {
   try {
     const { pushToken, userId } = req.body;
 
@@ -294,22 +297,6 @@ app.post("/update-push-token", async (req, res) => {
 });
 
 
-// =========================
-// SOCKET.IO
-// =========================
-io.on("connection", (socket) => {
-  console.log("🟢 Socket connected:", socket.id);
-
-  // ✅ JOIN ROOM
-socket.on("joinRoom", ({ roomId, userId }) => {
-  socket.join(roomId);
-
-  socketUserMap.set(socket.id, userId.toString());
-  activeUsersInRoom.set(userId.toString(), roomId);
-  socket.to(roomId).emit("user-joined", {
-    socketId: socket.id,
-  });
-});
 // =========================
 // 📞 CALL SIGNALING (VOICE + VIDEO)
 // =========================
@@ -443,12 +430,7 @@ socket.on("sendMessage", async (data) => {
 // send to room
 io.to(data.roomId).emit("receiveMessage", messagePayload);
 
-// 🔥 ALSO send directly to receiver socket
-const receiverSocket = onlineUsers.get(receiverId.toString());
 
-if (receiverSocket) {
-  io.to(receiverSocket).emit("receiveMessage", messagePayload);
-}
 
     // Send push notification to receiver
    const receiver = await User.findById(receiverId);
