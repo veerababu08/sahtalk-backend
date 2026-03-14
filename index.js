@@ -27,8 +27,7 @@ const onlineUsers = new Map();       // userId -> socket.id (for calls)
 const io = new Server(server, {
   cors: { origin: "*" },
 });
-const socketHandler = require("./utils/socketHandler");
-socketHandler(io);
+
 
 // =========================
 // MIDDLEWARE
