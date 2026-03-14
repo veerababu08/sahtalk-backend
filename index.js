@@ -12,7 +12,6 @@ const path = require("path");
 const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
 const { sendPushNotification } = require("./utils/sendPush");
-const socketHandler = require("./utils/socketHandler");
 
 
 // =========================
