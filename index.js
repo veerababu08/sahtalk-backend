@@ -211,7 +211,7 @@ app.get("/api/connections/chats/:userId", async (req, res) => {
       const lastMsg = await Message.findOne({ roomId: conn.roomId })
         .sort({ createdAt: -1 });
 
-      return {
+    return {
   _id: conn._id,
   roomId: conn.roomId,
   otherUser: isSender ? conn.receiver : conn.sender,
@@ -428,8 +428,7 @@ socket.on("sendMessage", async (data) => {
     });
 
 
-    // Send message to everyone in the room (including sender)
-    io.to(data.roomId).emit("receiveMessage", {
+  const messagePayload = {
   _id: msg._id,
   roomId: msg.roomId,
   sender: msg.sender,
@@ -439,7 +438,17 @@ socket.on("sendMessage", async (data) => {
   mediaUrl: msg.mediaUrl,
   fileMeta: msg.fileMeta,
   createdAt: msg.createdAt
-});
+};
+
+// send to room
+io.to(data.roomId).emit("receiveMessage", messagePayload);
+
+// 🔥 ALSO send directly to receiver socket
+const receiverSocket = onlineUsers.get(receiverId.toString());
+
+if (receiverSocket) {
+  io.to(receiverSocket).emit("receiveMessage", messagePayload);
+}
 
     // Send push notification to receiver
    const receiver = await User.findById(receiverId);
