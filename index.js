@@ -297,7 +297,7 @@ app.post("/api/users/update-push-token", async (req, res) => {
 
 io.on("connection", (socket) => {
   console.log("🟢 User connected:", socket.id);
-});
+
 // =========================
 // 📞 CALL SIGNALING (VOICE + VIDEO)
 // =========================
