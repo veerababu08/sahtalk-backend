@@ -194,40 +194,67 @@ app.put("/api/connections/:id/accept", async (req, res) => {
 // CHAT LIST / HOME
 // =========================
 app.get("/api/connections/chats/:userId", async (req, res) => {
-  const connections = await Connection.find({
-    status: "accepted",
-    $or: [
-      { sender: req.params.userId },
-      { receiver: req.params.userId },
-    ],
-  })
-    .populate("sender", "username email profileImage")
-    .populate("receiver", "username email profileImage");
+  try {
+    const currentUserId = req.params.userId;
 
-  const formatted = await Promise.all(
-    connections.map(async (conn) => {
-
-      const isSender = conn.sender._id.toString() === req.params.userId;
-
-      const lastMsg = await Message.findOne({ roomId: conn.roomId })
-        .sort({ createdAt: -1 });
-
-    return {
-  _id: conn._id,
-  roomId: conn.roomId,
-  otherUser: isSender ? conn.receiver : conn.sender,
-  lastMessage: lastMsg?.content || "Media",
-  updatedAt: lastMsg?.createdAt || new Date()
-};
+    const connections = await Connection.find({
+      status: "accepted",
+      $or: [{ sender: currentUserId }, { receiver: currentUserId }],
     })
-  );
+      .populate("sender", "username email profileImage")
+      .populate("receiver", "username email profileImage");
 
-res.json({
-  success: true,
-  chats: formatted
-});
+    const formatted = await Promise.all(
+      connections.map(async (conn) => {
+        const isSender = conn.sender._id.toString() === currentUserId;
+        const otherUser = isSender ? conn.receiver : conn.sender;
+
+        // 1. Get the very last message for sorting and preview
+        const lastMsg = await Message.findOne({ roomId: conn.roomId }).sort({
+          createdAt: -1,
+        });
+
+        // 2. Count messages where current user is receiver and isRead is false
+        const unreadCount = await Message.countDocuments({
+          roomId: conn.roomId,
+          receiver: currentUserId,
+          isRead: false,
+        });
+
+        return {
+          _id: conn._id,
+          roomId: conn.roomId,
+          otherUser: otherUser,
+          lastMessage: lastMsg?.content || (lastMsg?.messageType !== "text" ? "Media" : ""),
+          updatedAt: lastMsg?.createdAt || conn.createdAt,
+          unreadCount: unreadCount,
+        };
+      })
+    );
+
+    // 3. Sort list so newest messages are at the top
+    formatted.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+
+    res.json({ success: true, chats: formatted });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
+
+
+app.put("/api/messages/mark-read", async (req, res) => {
+  const { roomId, userId } = req.body; // userId is the person who is reading the messages
+  try {
+    await Message.updateMany(
+      { roomId, receiver: userId, isRead: false },
+      { $set: { isRead: true } }
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 // =========================
 // GET MESSAGES BY ROOM
 // =========================
