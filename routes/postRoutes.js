@@ -25,7 +25,7 @@ router.post("/add", upload.single("media"), async (req, res) => {
       return res.status(400).json({ message: "Media required" });
     }
 
-    const mediaUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+    const mediaUrl = `https://sahtalk-backend.onrender.com/uploads/${req.file.filename}`;
 
     const mediaType = req.file.mimetype.startsWith("video")
       ? "video"
