@@ -49,6 +49,38 @@ router.post("/add", upload.single("media"), async (req, res) => {
     res.status(500).json({ message: "Failed to add post" });
   }
 });
+
+/* ===== LIKE / UNLIKE POST ===== */
+
+router.put("/like/:postId/:userId", async (req, res) => {
+  try {
+
+    const { postId, userId } = req.params;
+
+    const post = await Post.findById(postId);
+
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    const alreadyLiked = post.likes.includes(userId);
+
+    if (alreadyLiked) {
+      post.likes = post.likes.filter(
+        (id) => id.toString() !== userId
+      );
+    } else {
+      post.likes.push(userId);
+    }
+
+    await post.save();
+
+    res.json({ likes: post.likes.length });
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 /* ===== DELETE POST ===== */
 router.delete("/:postId/:userId", async (req, res) => {
   try {
@@ -68,6 +100,21 @@ router.delete("/:postId/:userId", async (req, res) => {
     res.json({ message: "Post deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+/* ===== GET POSTS OF A USER (PROFILE) ===== */
+
+router.get("/user/:userId", async (req, res) => {
+  try {
+
+    const posts = await Post.find({
+      user: req.params.userId
+    }).sort({ createdAt: -1 });
+
+    res.json(posts);
+
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching user posts" });
   }
 });
 router.get("/category/:category", async (req, res) => {

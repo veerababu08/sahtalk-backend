@@ -39,6 +39,12 @@ const postSchema = new mongoose.Schema(
     enum: ["public", "private"],
     default: "public",
   },
+likes: [
+  {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User"
+  }
+],
 },
 { timestamps: true }
 );
