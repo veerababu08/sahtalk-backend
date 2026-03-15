@@ -171,9 +171,11 @@ router.post("/reject", async (req, res) => {
 });
 
 /* ================= CHAT LIST ================= */
+/* ================= CHAT LIST (FIXED) ================= */
 router.get("/chats/:userId", async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.params.userId);
+    const Message = require("../models/Message"); // Message model import confirm chesko
 
     const connections = await Connection.find({
       status: "accepted",
@@ -182,18 +184,38 @@ router.get("/chats/:userId", async (req, res) => {
       .populate("sender", "username email profileImage")
       .populate("receiver", "username email profileImage");
 
-    const chats = connections.map((conn) => {
-      const otherUser =
-        conn.sender._id.toString() === userId.toString()
-          ? conn.receiver
-          : conn.sender;
+    // Prathi connection ki last message fetch chesthunnam
+    const chats = await Promise.all(
+      connections.map(async (conn) => {
+        const otherUser =
+          conn.sender._id.toString() === userId.toString()
+            ? conn.receiver
+            : conn.sender;
 
-      return {
-        connectionId: conn._id,
-        roomId: conn.roomId,
-        user: otherUser,
-      };
-    });
+        // Ee room lo last message lakkura
+        const lastMsg = await Message.findOne({ roomId: conn.roomId })
+          .sort({ createdAt: -1 });
+
+        // Unread count fetch cheyyi (nuvvu mark-read logic use chesthunnav kabatti)
+        const unreadCount = await Message.countDocuments({
+          roomId: conn.roomId,
+          receiver: userId,
+          isRead: false
+        });
+
+        return {
+          connectionId: conn._id,
+          roomId: conn.roomId,
+          otherUser: otherUser, // Frontend lo standard use cheddam
+          lastMessage: lastMsg ? (lastMsg.messageType === "text" ? lastMsg.content : "Media") : "No messages yet",
+          updatedAt: lastMsg ? lastMsg.createdAt : conn.updatedAt,
+          unreadCount: unreadCount || 0
+        };
+      })
+    );
+
+    // Recent chats top lo ravali kabatti sort chesthunnam
+    chats.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
     res.json({
       success: true,
@@ -204,5 +226,4 @@ router.get("/chats/:userId", async (req, res) => {
     res.status(500).json({ success: false });
   }
 });
-
 module.exports = router;
