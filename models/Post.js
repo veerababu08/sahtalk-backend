@@ -1,22 +1,46 @@
 const mongoose = require("mongoose");
 
-const PostSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    image: {
-      type: String,
-      required: true,
-    },
-    caption: {
-      type: String,
-      default: "",
-    },
+const postSchema = new mongoose.Schema(
+{
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
   },
-  { timestamps: true }
+
+  media: {
+    type: String,
+    required: true,
+  },
+
+  mediaType: {
+    type: String,
+    enum: ["image", "video"],
+    required: true,
+  },
+
+  caption: {
+    type: String,
+    default: "",
+  },
+
+  /* ===== CATEGORY FOR EXPLORE ===== */
+
+  category: {
+    type: String,
+    enum: ["Travel", "Food", "Education", "Entertainment"],
+    default: "Entertainment",
+  },
+
+  /* ===== VISIBILITY ===== */
+
+  visibility: {
+    type: String,
+    enum: ["public", "private"],
+    default: "public",
+  },
+},
+{ timestamps: true }
 );
 
-module.exports = mongoose.model("Post", PostSchema);
+module.exports = mongoose.model("Post", postSchema);

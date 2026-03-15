@@ -34,7 +34,7 @@ const io = new Server(server, {
 // =========================
 app.use(express.json());
 app.use(cors({ origin: "*" }));
-
+app.use("/uploads", express.static("uploads"));
 // =========================
 // MODELS
 // =========================

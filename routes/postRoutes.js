@@ -1,37 +1,54 @@
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
 const Post = require("../models/Post");
 
 /* ===== ADD POST ===== */
-router.post("/add", async (req, res) => {
+/* ===== MULTER STORAGE ===== */
+
+const storage = multer.diskStorage({
+  destination: "uploads/",
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + "-" + file.originalname);
+  },
+});
+
+const upload = multer({ storage });
+
+/* ===== ADD POST ===== */
+router.post("/add", upload.single("media"), async (req, res) => {
   try {
-    const { user, image, caption } = req.body;
+
+    const { userId, caption, category, visibility } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({ message: "Media required" });
+    }
+
+    const mediaUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+
+    const mediaType = req.file.mimetype.startsWith("video")
+      ? "video"
+      : "image";
 
     const post = new Post({
-      user,
-      image,
+      user: userId,
+      media: mediaUrl,
+      mediaType,
       caption,
+      category: category || "Entertainment",
+      visibility: visibility || "public",
     });
 
     await post.save();
+
     res.json({ success: true, post });
+
   } catch (err) {
+    console.log(err);
     res.status(500).json({ message: "Failed to add post" });
   }
 });
-
-/* ===== GET POSTS BY USER ===== */
-router.get("/:userId", async (req, res) => {
-  try {
-    const posts = await Post.find({ user: req.params.userId })
-      .sort({ createdAt: -1 });
-
-    res.json(posts);
-  } catch (err) {
-    res.status(500).json({ message: "Failed to fetch posts" });
-  }
-});
-
 /* ===== DELETE POST ===== */
 router.delete("/:postId/:userId", async (req, res) => {
   try {
@@ -53,5 +70,18 @@ router.delete("/:postId/:userId", async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+router.get("/category/:category", async (req, res) => {
+  try {
 
+    const posts = await Post.find({
+      category: req.params.category,
+      visibility: "public"
+    }).sort({ createdAt: -1 });
+
+    res.json(posts);
+
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching posts" });
+  }
+});
 module.exports = router;
