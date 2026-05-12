@@ -28,7 +28,7 @@ const postSchema = new mongoose.Schema(
 
   category: {
     type: String,
-    enum: ["Travel", "Food", "Education", "Entertainment"],
+    enum: ["Travel", "Food", "Education", "Entertainment"],	
     default: "Entertainment",
   },
 
